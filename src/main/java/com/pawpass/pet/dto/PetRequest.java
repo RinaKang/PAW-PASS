@@ -6,10 +6,11 @@ import jakarta.validation.constraints.Positive;
 
 public record PetRequest(
         @NotBlank String name,
+        @NotBlank String species,
         @NotBlank String breed,
         @Positive Double weight,
         PetSize size,
         Boolean hasCarrier,
-        Boolean hasStroller
+        Boolean hasLeash
 ) {
 }

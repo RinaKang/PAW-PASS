@@ -10,12 +10,15 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: validate   
+      ddl-auto: validate
     show-sql: true
     properties:
       hibernate:
         format_sql: true
         dialect: org.hibernate.dialect.MySQLDialect
+
+  jackson:
+    property-naming-strategy: SNAKE_CASE
 
 # 외부 API 설정 - 절대 여기에 실제 키 값을 넣지 말 것!
 external-api:

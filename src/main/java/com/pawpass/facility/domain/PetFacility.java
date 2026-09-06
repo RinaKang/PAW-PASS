@@ -68,12 +68,11 @@ public class PetFacility {
     @Column(name = "pet_restriction", length = 300)
     private String petRestriction;
 
-    @Lob
-    @Column(name = "description_raw")
-    private String descriptionRaw; // 파싱 실패 대비 원문 그대로 보관
+    @Column(name = "description_raw", length = 65535)
+    private String descriptionRaw; // 파싱 실패 대비 원문 그대로 보관 (length=65535 -> Hibernate가 MySQL TEXT로 매핑)
 
     @Column(name = "issued_date")
-    private String issuedDate; // 원본 API의 issuedDate (RQ-05 최신성 판단용, 대부분 오래된 값일 수 있음)
+    private String issuedDate; // 원본 API의 issuedDate 
 
     @Setter
     @Column(name = "synced_at", nullable = false)

@@ -9,7 +9,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Date;
+import java.util.UUID;
 
 @Component
 public class JwtProvider {
@@ -33,11 +36,11 @@ public class JwtProvider {
     }
 
     public String generateAccessToken(Long userId) {
-        return generateToken(userId, TYPE_ACCESS, accessTokenExpireMs);
+        return generateToken(userId, TYPE_ACCESS, accessTokenExpireMs, null);
     }
 
     public String generateRefreshToken(Long userId) {
-        return generateToken(userId, TYPE_REFRESH, refreshTokenExpireMs);
+        return generateToken(userId, TYPE_REFRESH, refreshTokenExpireMs, UUID.randomUUID().toString());
     }
 
     public boolean validateToken(String token) {
@@ -57,15 +60,27 @@ public class JwtProvider {
         return Long.valueOf(getClaims(token).getSubject());
     }
 
-    private String generateToken(Long userId, String type, long expireMs) {
+    /** refresh token에만 존재하는 고유 ID (jti) - 로그아웃 블랙리스트 조회 키로 사용 */
+    public String getJti(String token) {
+        return getClaims(token).getId();
+    }
+
+    public LocalDateTime getExpiration(String token) {
+        Date expiration = getClaims(token).getExpiration();
+        return LocalDateTime.ofInstant(expiration.toInstant(), ZoneId.systemDefault());
+    }
+
+    private String generateToken(Long userId, String type, long expireMs, String jti) {
         Date now = new Date();
-        return Jwts.builder()
+        var builder = Jwts.builder()
                 .subject(String.valueOf(userId))
                 .claim(CLAIM_TYPE, type)
                 .issuedAt(now)
-                .expiration(new Date(now.getTime() + expireMs))
-                .signWith(key)
-                .compact();
+                .expiration(new Date(now.getTime() + expireMs));
+        if (jti != null) {
+            builder.id(jti);
+        }
+        return builder.signWith(key).compact();
     }
 
     private Claims getClaims(String token) {

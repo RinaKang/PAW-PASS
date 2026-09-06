@@ -48,6 +48,9 @@ public class User {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
+
     @Builder
     public User(String googleId, String email, String name, String picture) {
         this.googleId = googleId;
@@ -61,8 +64,14 @@ public class User {
         this.createdAt = LocalDateTime.now();
     }
 
+    @PreUpdate
+    protected void onUpdate() {
+        this.updatedAt = LocalDateTime.now();
+    }
+
     public void updateTravelCondition(String regionCode, String travelCategory) {
         this.regionCode = regionCode;
         this.travelCategory = travelCategory;
+        this.updatedAt = LocalDateTime.now(); // @PreUpdate는 flush 시점에만 반영되므로, 같은 트랜잭션 내 즉시 응답용으로 직접 설정
     }
 }

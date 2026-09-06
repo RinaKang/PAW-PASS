@@ -25,6 +25,9 @@ public class Pet {
     private String name;
 
     @Column(nullable = false, length = 30)
+    private String species; // 종류 (예: 강아지, 고양이)
+
+    @Column(nullable = false, length = 30)
     private String breed;
 
     @Column(nullable = false)
@@ -37,22 +40,23 @@ public class Pet {
     @Column(name = "has_carrier", nullable = false)
     private boolean hasCarrier;
 
-    @Column(name = "has_stroller", nullable = false)
-    private boolean hasStroller;
+    @Column(name = "has_leash", nullable = false)
+    private boolean hasLeash;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
     @Builder
-    public Pet(Long userId, String name, String breed, Double weight, PetSize size,
-               boolean hasCarrier, boolean hasStroller) {
+    public Pet(Long userId, String name, String species, String breed, Double weight, PetSize size,
+               boolean hasCarrier, boolean hasLeash) {
         this.userId = userId;
         this.name = name;
+        this.species = species;
         this.breed = breed;
         this.weight = weight;
         this.size = size;
         this.hasCarrier = hasCarrier;
-        this.hasStroller = hasStroller;
+        this.hasLeash = hasLeash;
     }
 
     @PrePersist
@@ -60,13 +64,14 @@ public class Pet {
         this.createdAt = LocalDateTime.now();
     }
 
-    public void update(String name, String breed, Double weight, PetSize size,
-                        Boolean hasCarrier, Boolean hasStroller) {
+    public void update(String name, String species, String breed, Double weight, PetSize size,
+                        Boolean hasCarrier, Boolean hasLeash) {
         if (name != null) this.name = name;
+        if (species != null) this.species = species;
         if (breed != null) this.breed = breed;
         if (weight != null) this.weight = weight;
         if (size != null) this.size = size;
         if (hasCarrier != null) this.hasCarrier = hasCarrier;
-        if (hasStroller != null) this.hasStroller = hasStroller;
+        if (hasLeash != null) this.hasLeash = hasLeash;
     }
 }

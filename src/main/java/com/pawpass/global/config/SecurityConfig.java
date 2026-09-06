@@ -28,8 +28,9 @@ import java.util.List;
 public class SecurityConfig {
 
     private static final String[] PERMIT_ALL_PATHS = {
-            "/auth/google",
+            "/auth/google_id",
             "/auth/refresh",
+            "/auth/logout",
             "/swagger-ui/**",
             "/v3/api-docs/**"
     };
