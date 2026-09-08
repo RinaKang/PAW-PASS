@@ -26,7 +26,8 @@ external-api:
     base-url: https://apis.data.go.kr/B551011/KorPetTourService2
     service-key: ${TOUR_API_SERVICE_KEY:}
   kcisa-api:
-    base-url: https://api.kcisa.kr/openapi/API_TOU_050/request
+    # 공공데이터포털(odcloud.kr 게이트웨이) 활용신청 기준. 데이터셋 하나당 오퍼레이션이 하나뿐이라 base-url에 전체 리소스 경로를 포함시킴
+    base-url: https://api.odcloud.kr/api/15111389/v1/uddi:41944402-8249-4e45-9e9d-a52d0a7db1cc
     service-key: ${KCISA_API_SERVICE_KEY:}
 
 jwt:
@@ -43,10 +44,14 @@ oauth:
 
 # 프론트엔드 배포/개발 URL 확정되면 교체. 콤마로 여러 origin 구분 가능
 cors:
-  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
 
 server:
   port: 8080
+  servlet:
+    encoding:
+      charset: UTF-8
+      force: true   # 응답 Content-Type에 charset=UTF-8을 항상 명시 (구버전 PowerShell 등에서 한글 깨짐 방지)
 
 springdoc:
   swagger-ui:

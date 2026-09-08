@@ -10,13 +10,11 @@ import lombok.Setter;
 import java.time.LocalDateTime;
 
 /**
- * 한국문화정보원 API(API_TOU_050) 데이터를 배치로 미러링하는 테이블.
+ * 한국문화정보원_전국 반려동물 동반 가능 문화시설 위치 데이터(공공데이터포털, odcloud.kr 게이트웨이)를
+ * 배치로 미러링하는 테이블. 원본 API는 반려동물 동반 가능(Y)/불가(N) 시설을 모두 포함하므로,
+ * 동기화 시 pet_allowed=true(원문 "Y")인 것만 저장한다.
  *
- * ⚠️ 전제조건: 이 테이블은 "캐싱 허용"을 전제로 설계됨.
- * 한국문화정보원 측에 캐싱 가능 여부 문의 답변이 "불허"로 오면
- * 이 엔티티와 facility/batch 패키지는 통째로 제거하고,
- * facility 조회를 tour 패키지처럼 실시간 호출 방식으로 재설계해야 함.
- * (단, 그 경우 위치기반/거리순 검색은 구현 불가해짐 - 이전 논의 참고)
+ * ⚠️ 전제조건: 이 테이블은 "캐싱 허용"을 전제로 설계됨 (2026-09 문의 결과 "모두에게 열려있고 사용 가능"으로 확인됨).
  */
 @Entity
 @Table(name = "pet_facilities")
@@ -37,8 +35,14 @@ public class PetFacility {
     @Column(length = 30)
     private String category2;
 
+    @Column(length = 30)
+    private String category3;
+
     @Column(length = 300)
     private String address;
+
+    @Column(length = 10)
+    private String zipcode;
 
     private Double lat;
     private Double lng;
@@ -52,7 +56,6 @@ public class PetFacility {
     @Column(length = 200)
     private String charge;
 
-    // --- description 원문을 파싱해서 구조화한 필드들 ---
     @Column(name = "operating_hours", length = 200)
     private String operatingHours;
 
@@ -65,29 +68,48 @@ public class PetFacility {
     @Column(name = "pet_allowed")
     private Boolean petAllowed;
 
+    @Column(name = "pet_exclusive", length = 50)
+    private String petExclusive; // 반려동물 전용 정보 (원문이 Y/N이 아니라 "해당없음" 등 서술형이라 String으로 보관)
+
+    @Column(name = "allowed_pet_size", length = 65535)
+    private String allowedPetSize; // 입장 가능 동물 크기. 실측상 단순 "모두 가능"이 아니라 괄호+쉼표 나열형 서술도 있어 length=65535 -> TEXT로 매핑
+
     @Column(name = "pet_restriction", length = 300)
     private String petRestriction;
 
-    @Column(name = "description_raw", length = 65535)
-    private String descriptionRaw; // 파싱 실패 대비 원문 그대로 보관 (length=65535 -> Hibernate가 MySQL TEXT로 매핑)
+    @Column(name = "indoor")
+    private Boolean indoor;
 
-    @Column(name = "issued_date")
-    private String issuedDate; // 원본 API의 issuedDate 
+    @Column(name = "outdoor")
+    private Boolean outdoor;
+
+    @Column(name = "additional_pet_fee", length = 100)
+    private String additionalPetFee;
+
+    @Column(name = "description_raw", length = 65535)
+    private String descriptionRaw; // 기본 정보_장소설명. 파싱 실패 대비 원문 그대로 보관 (length=65535 -> Hibernate가 MySQL TEXT로 매핑)
+
+    @Column(name = "issued_date", length = 20)
+    private String issuedDate; // 원본 API의 최종작성일
 
     @Setter
     @Column(name = "synced_at", nullable = false)
     private LocalDateTime syncedAt;
 
     @Builder
-    public PetFacility(String id, String title, String category1, String category2,
-                        String address, Double lat, Double lng, String tel, String url, String charge,
+    public PetFacility(String id, String title, String category1, String category2, String category3,
+                        String address, String zipcode, Double lat, Double lng, String tel, String url, String charge,
                         String operatingHours, String closedDays, Boolean parkingAvailable,
-                        Boolean petAllowed, String petRestriction, String descriptionRaw, String issuedDate) {
+                        Boolean petAllowed, String petExclusive, String allowedPetSize, String petRestriction,
+                        Boolean indoor, Boolean outdoor, String additionalPetFee,
+                        String descriptionRaw, String issuedDate) {
         this.id = id;
         this.title = title;
         this.category1 = category1;
         this.category2 = category2;
+        this.category3 = category3;
         this.address = address;
+        this.zipcode = zipcode;
         this.lat = lat;
         this.lng = lng;
         this.tel = tel;
@@ -97,7 +119,12 @@ public class PetFacility {
         this.closedDays = closedDays;
         this.parkingAvailable = parkingAvailable;
         this.petAllowed = petAllowed;
+        this.petExclusive = petExclusive;
+        this.allowedPetSize = allowedPetSize;
         this.petRestriction = petRestriction;
+        this.indoor = indoor;
+        this.outdoor = outdoor;
+        this.additionalPetFee = additionalPetFee;
         this.descriptionRaw = descriptionRaw;
         this.issuedDate = issuedDate;
         this.syncedAt = LocalDateTime.now();

@@ -11,7 +11,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 /**
- * API 명세서 - 여행조건 설정 / 회원탈퇴 (RQ-02, RQ-08)
+ * 여행조건 설정 / 회원탈퇴
  * PUT    /users/me/travel-condition
  * DELETE /users/me
  */

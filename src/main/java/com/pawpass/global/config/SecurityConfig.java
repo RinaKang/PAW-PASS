@@ -31,6 +31,7 @@ public class SecurityConfig {
             "/auth/google_id",
             "/auth/refresh",
             "/auth/logout",
+            "/swagger-ui.html",
             "/swagger-ui/**",
             "/v3/api-docs/**"
     };
