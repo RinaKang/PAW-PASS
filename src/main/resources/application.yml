@@ -29,6 +29,11 @@ external-api:
     # 공공데이터포털(odcloud.kr 게이트웨이) 활용신청 기준. 데이터셋 하나당 오퍼레이션이 하나뿐이라 base-url에 전체 리소스 경로를 포함시킴
     base-url: https://api.odcloud.kr/api/15111389/v1/uddi:41944402-8249-4e45-9e9d-a52d0a7db1cc
     service-key: ${KCISA_API_SERVICE_KEY:}
+  gemini-api:
+    # 반려동물 동반 조건 원문(자유서술) -> 구조화 판정 AI 매칭용. 무료 티어 모델(Flash 계열) 사용 전제.
+    base-url: https://generativelanguage.googleapis.com
+    api-key: ${GEMINI_API_KEY:}
+    model: ${GEMINI_MODEL:gemini-3.5-flash}
 
 jwt:
   secret: ${JWT_SECRET:change-this-in-production-please-use-env-variable}

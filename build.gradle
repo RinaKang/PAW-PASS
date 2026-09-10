@@ -36,6 +36,9 @@ dependencies {
 	// 검증
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 
+	// AI 매칭 판정 결과 캐싱 (TourAPI 원문은 계속 매번 실시간 호출, Gemini 판정 결과만 잠깐 재사용)
+	implementation 'com.github.ben-manes.caffeine:caffeine'
+
 	// Swagger (API 문서 자동화 - 지금까지 만든 API 명세서를 코드와 동기화하는 용도)
 	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.5.0'
 

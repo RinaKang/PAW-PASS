@@ -1,5 +1,6 @@
 package com.pawpass.trip.service;
 
+import com.pawpass.explore.service.PlaceLookupService;
 import com.pawpass.trip.domain.Trip;
 import com.pawpass.trip.dto.TripRequest;
 import com.pawpass.trip.dto.TripResponse;
@@ -16,6 +17,7 @@ import java.util.List;
 public class TripService {
 
     private final TripRepository tripRepository;
+    private final PlaceLookupService placeLookupService;
 
     @Transactional
     public TripResponse add(Long userId, TripRequest request) {
@@ -29,9 +31,9 @@ public class TripService {
     }
 
     public List<TripResponse> findAllByUser(Long userId) {
-        // TODO: source별로 tour(실시간) / facility(DB) 상세정보 조인해서 반환 (explore 도메인 연동 필요)
         return tripRepository.findAllByUserIdOrderByVisitedAtDesc(userId).stream()
-                .map(TripResponse::from)
+                .map(trip -> TripResponse.withDetail(
+                        trip, placeLookupService.lookup(trip.getSource(), trip.getContentId())))
                 .toList();
     }
 }

@@ -1,5 +1,6 @@
 package com.pawpass.favorite.service;
 
+import com.pawpass.explore.service.PlaceLookupService;
 import com.pawpass.favorite.domain.Favorite;
 import com.pawpass.favorite.dto.FavoriteRequest;
 import com.pawpass.favorite.dto.FavoriteResponse;
@@ -16,6 +17,7 @@ import java.util.List;
 public class FavoriteService {
 
     private final FavoriteRepository favoriteRepository;
+    private final PlaceLookupService placeLookupService;
 
     @Transactional
     public FavoriteResponse add(Long userId, FavoriteRequest request) {
@@ -31,9 +33,9 @@ public class FavoriteService {
     }
 
     public List<FavoriteResponse> findAllByUser(Long userId) {
-        // TODO: source별로 tour(실시간) / facility(DB) 상세정보 조인해서 반환 (explore 도메인 연동 필요)
         return favoriteRepository.findAllByUserId(userId).stream()
-                .map(FavoriteResponse::from)
+                .map(favorite -> FavoriteResponse.withDetail(
+                        favorite, placeLookupService.lookup(favorite.getSource(), favorite.getContentId())))
                 .toList();
     }
 

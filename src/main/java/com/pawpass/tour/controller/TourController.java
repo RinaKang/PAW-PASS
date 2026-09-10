@@ -1,6 +1,7 @@
 package com.pawpass.tour.controller;
 
 import com.pawpass.global.response.ApiResponse;
+import com.pawpass.tour.dto.TourDetailResponse;
 import com.pawpass.tour.dto.TourSummaryResponse;
 import com.pawpass.tour.service.TourService;
 import lombok.RequiredArgsConstructor;
@@ -15,8 +16,6 @@ import java.util.List;
  *
  * 중요: 이 도메인은 절대 DB에 저장하지 않음 (관광공사 공모전 정책 - 실시간 호출만 허용).
  * 캐싱/영속화 로직을 여기 추가하면 안 됨. facility 패키지(KCISA)와 반드시 구분할 것.
- *
- * TODO: /tours/{contentId} - detailCommon2 + detailIntro2 + detailPetTour2 조합 구현 필요
  */
 @RestController
 @RequiredArgsConstructor
@@ -34,8 +33,7 @@ public class TourController {
     }
 
     @GetMapping("/tours/{contentId}")
-    public ApiResponse<Object> getDetail(@PathVariable String contentId) {
-        // TODO: tourApiService.getDetail(contentId) - detailCommon2 + detailPetTour2 조합 호출
-        throw new UnsupportedOperationException("TODO: TourApiService 구현 필요");
+    public ApiResponse<TourDetailResponse> getDetail(@PathVariable String contentId) {
+        return ApiResponse.success(tourService.getDetail(contentId));
     }
 }
