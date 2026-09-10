@@ -26,9 +26,18 @@ public class TourService {
     private final TourApiClient tourApiClient;
 
     public List<TourSummaryResponse> search(String regionCode, String category, int page) {
+        return search(regionCode, null, category, page);
+    }
+
+    /**
+     * /explore가 "강릉" 같은 시/군 단위 공통 지역값을 시/도(lDongRegnCd)+시/군구(lDongSignguCd) 조합으로
+     * 변환해서 더 정밀하게 필터링할 때 쓴다 (explore/service/ExploreConditionMapper 참고).
+     * GET /tours는 기존 3-args search()만 쓰므로 이 오버로드가 추가돼도 그 엔드포인트 동작은 그대로다.
+     */
+    public List<TourSummaryResponse> search(String lDongRegnCd, String lDongSignguCd, String category, int page) {
         TourAreaBasedListResponse response = tourApiClient.areaBasedList(
                 PAGE_SIZE, page, ARRANGE_MODIFIED_DESC, category,
-                regionCode, null, null, null, null
+                lDongRegnCd, lDongSignguCd, null, null, null
         );
 
         var items = response.response().body().items();

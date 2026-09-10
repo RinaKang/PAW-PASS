@@ -11,8 +11,12 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import com.pawpass.facility.dto.FacilitySummaryResponse;
+
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -32,8 +36,16 @@ public class ExploreService {
     private static final String DEFAULT_MATCH_STATUS = "확인필요";
 
     /**
-     * Gemini 무료 티어가 분당 5회로 요청을 제한한다 (실측: 페이지 하나를 전부 병렬로 쏘자마자 429 터짐,
-     * 2026-09-10). 동시 실행 수를 낮춘다고 분당 총량 제한 자체가 없어지진 않으므로(그래서 완전한 해결책은
+     * "초기 목록엔 가능·조건부만 표시". petId가 있는데 matchStatus를
+     * 명시적으로 안 넘긴 "기본" 요청에서만 서버가 이 필터를 강제한다 - 프론트가 matchStatus를 명시하면
+     * (불가/확인필요 포함) 그 값 그대로 필터링해서 보여준다.
+     */
+    private static final Set<String> DEFAULT_VISIBLE_STATUSES = Set.of(
+            MatchResponse.STATUS_ALLOWED, MatchResponse.STATUS_CONDITIONAL
+    );
+
+    /**
+     * Gemini 무료 티어가 분당 5회로 요청을 제한한다  동시 실행 수를 낮춘다고 분당 총량 제한 자체가 없어지진 않으므로(그래서 완전한 해결책은
      * 아님), 순간 버스트로 즉시 다 막히는 것만이라도 줄이는 용도 - 진짜 해결은 아래 computeOne()의
      * "실패하면 확인필요로 대체" 쪽이다.
      */
@@ -56,31 +68,78 @@ public class ExploreService {
     }
 
     /**
-     * petId가 없으면(반려동물을 아직 등록 안 한 사용자 등) 개인화 판정 없이 전부 "확인필요"로 내려간다.
-     * petId가 있으면 항목마다 실제 매칭(TourAPI 실시간 조회 + 규칙/AI 판정)을 돌려서 진짜 match_status를 채운다 -
-     * 리스트/지도 화면에서 "매칭된 곳만 보여주기"가 핵심 기능이라 목록 단계에서부터 정확해야 한다.
+     * petId가 없으면(반려동물을 아직 등록 안 한 사용자 등) 개인화 판정 없이 전부 "확인필요"로 내려가고,
+     * matchStatus 기본 필터는 적용하지 않는다(적용하면 전부 걸러져서 빈 목록만 나옴 - 의미 없음).
+     * petId가 있으면 항목마다 실제 매칭(TourAPI 실시간 조회 + 규칙/AI 판정)을 돌려서 진짜 match_status를
+     * 채우고, matchStatus를 명시하지 않은 "기본" 요청은 가능/조건부만 반환한다
      */
     public List<ExploreItem> explore(Long userId, String regionCode, String category, String matchStatus, Long petId, int page) {
-        List<ExploreItem> tourItems = tourService.search(regionCode, category, page).stream()
-                .map(tour -> ExploreItem.fromTour(tour, DEFAULT_MATCH_STATUS))
-                .toList();
-        List<ExploreItem> facilityItems = facilityService.search(regionCode, category, page).stream()
-                .map(facility -> ExploreItem.fromFacility(facility, DEFAULT_MATCH_STATUS))
-                .toList();
+        List<ExploreItem> tourItems = searchTourItems(regionCode, category, page);
+        List<ExploreItem> facilityItems = searchFacilityItems(regionCode, category, page);
 
         List<ExploreItem> merged = mergeTourApiFirst(tourItems, facilityItems);
 
-        if (petId != null) {
+        boolean personalized = petId != null;
+        if (personalized) {
             Pet pet = matchingService.requireOwnedPet(userId, petId);
             merged = computeMatchStatuses(merged, pet);
         }
 
-        if (matchStatus == null || matchStatus.isBlank()) {
-            return merged;
+        if (matchStatus != null && !matchStatus.isBlank()) {
+            return merged.stream()
+                    .filter(item -> matchStatus.equals(item.matchStatus()))
+                    .toList();
         }
-        return merged.stream()
-                .filter(item -> matchStatus.equals(item.matchStatus()))
+        if (personalized) {
+            return merged.stream()
+                    .filter(item -> DEFAULT_VISIBLE_STATUSES.contains(item.matchStatus()))
+                    .toList();
+        }
+        return merged;
+    }
+
+    /**
+     * 공통 지역명을 tour 쪽 규격(lDongRegnCd/lDongSignguCd)으로 바꿔서 조회한다.
+     * 매핑 테이블에 없는 지역/카테고리는 ExploreConditionMapper가 필터 없음(Optional.empty)으로 돌려주므로
+     * 자동으로 전체 조회에 가깝게 동작한다 - 값 하나 잘못 왔다고 빈 목록이 되진 않는다.
+     */
+    private List<ExploreItem> searchTourItems(String regionCode, String category, int page) {
+        ExploreConditionMapper.TourRegion region = ExploreConditionMapper.toTourRegion(regionCode).orElse(null);
+        String lDongRegnCd = region == null ? null : region.lDongRegnCd();
+        String lDongSignguCd = region == null ? null : region.lDongSignguCd();
+        String contentTypeId = ExploreConditionMapper.toTourContentTypeId(category).orElse(null);
+
+        return tourService.search(lDongRegnCd, lDongSignguCd, contentTypeId, page).stream()
+                .map(tour -> ExploreItem.fromTour(tour, DEFAULT_MATCH_STATUS))
                 .toList();
+    }
+
+    /**
+     * facility는 카테고리가 1:N으로 매핑될 수 있어서(예: CULTURE -> 박물관/미술관/문예회관), 매핑된 category3
+     * 값마다 기존 FacilityService.search()를 그대로 반복 호출해서 합친다 - FacilityService/Repository는
+     * 하나도 안 건드리고 어댑터 계층(여기)에서만 해결한다. 같은 시설이 여러 카테고리에 겹쳐 나올 일은 없지만
+     * (category3는 시설당 하나) id 기준으로 한 번 더 방어적으로 중복 제거한다.
+     */
+    private List<ExploreItem> searchFacilityItems(String regionCode, String category, int page) {
+        String regionKeyword = ExploreConditionMapper.toFacilityRegionKeyword(regionCode);
+        List<String> categoryValues = ExploreConditionMapper.toFacilityCategory3Values(category);
+
+        if (categoryValues.isEmpty()) {
+            return facilityService.search(regionKeyword, null, page).stream()
+                    .map(facility -> ExploreItem.fromFacility(facility, DEFAULT_MATCH_STATUS))
+                    .toList();
+        }
+
+        List<ExploreItem> merged = new ArrayList<>();
+        Set<String> seenIds = new HashSet<>();
+        for (String categoryValue : categoryValues) {
+            for (FacilitySummaryResponse facility : facilityService.search(regionKeyword, categoryValue, page)) {
+                if (seenIds.add(facility.id())) {
+                    merged.add(ExploreItem.fromFacility(facility, DEFAULT_MATCH_STATUS));
+                }
+            }
+        }
+        return merged;
     }
 
     /**

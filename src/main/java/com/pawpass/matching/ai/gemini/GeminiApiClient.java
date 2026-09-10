@@ -12,7 +12,8 @@ import java.util.Map;
 
 /**
  * Google Gemini API(Interactions API, https://ai.google.dev/api/interactions-api) 호출 클라이언트.
- * 무료 티어 Flash 계열 모델 사용을 전제
+ * 무료 티어 Flash 계열 모델 사용을 전제로 한다 (application.yml의 external-api.gemini-api.model).
+ */
 @Slf4j
 @Component
 @RequiredArgsConstructor
