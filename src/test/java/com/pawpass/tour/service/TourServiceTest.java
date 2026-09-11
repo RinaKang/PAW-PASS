@@ -3,6 +3,7 @@ package com.pawpass.tour.service;
 import com.pawpass.tour.client.TourApiClient;
 import com.pawpass.tour.dto.TourDetailResponse;
 import com.pawpass.tour.dto.external.TourDetailCommonItem;
+import com.pawpass.tour.dto.external.TourDetailImageItem;
 import com.pawpass.tour.dto.external.TourDetailIntroItem;
 import com.pawpass.tour.dto.external.TourDetailPetTourItem;
 import org.junit.jupiter.api.Test;
@@ -10,6 +11,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -71,6 +74,38 @@ class TourServiceTest {
         assertThat(result.hours()).isNull();
         assertThat(result.images()).containsExactly("img");
         assertThat(result.petCondition().acmpyTypeCd()).isNull();
+    }
+
+    @Test
+    void getDetail_detailImage2_썸네일이_있으면_firstimage_대신_그걸_쓴다() {
+        TourDetailCommonItem common = new TourDetailCommonItem(
+                "123", "12", "제목", "주소1", null, "tel", "http://firstimage.jpg", "http://firstimage2.jpg", "overview", "modified");
+        when(tourApiClient.detailCommon("123")).thenReturn(common);
+        when(tourApiClient.detailIntro("123", "12")).thenReturn(null);
+        when(tourApiClient.detailPetTour("123")).thenReturn(null);
+        when(tourApiClient.detailImage("123")).thenReturn(List.of(
+                new TourDetailImageItem("http://thumb1.jpg"),
+                new TourDetailImageItem("http://thumb2.jpg"),
+                new TourDetailImageItem("http://thumb3.jpg")
+        ));
+
+        TourDetailResponse result = tourService.getDetail("123");
+
+        assertThat(result.images()).containsExactly("http://thumb1.jpg", "http://thumb2.jpg", "http://thumb3.jpg");
+    }
+
+    @Test
+    void getDetail_detailImage2가_비어있으면_firstimage로_폴백한다() {
+        TourDetailCommonItem common = new TourDetailCommonItem(
+                "123", "12", "제목", "주소1", null, "tel", "http://firstimage.jpg", "http://firstimage2.jpg", "overview", "modified");
+        when(tourApiClient.detailCommon("123")).thenReturn(common);
+        when(tourApiClient.detailIntro("123", "12")).thenReturn(null);
+        when(tourApiClient.detailPetTour("123")).thenReturn(null);
+        when(tourApiClient.detailImage("123")).thenReturn(List.of());
+
+        TourDetailResponse result = tourService.getDetail("123");
+
+        assertThat(result.images()).containsExactly("http://firstimage.jpg", "http://firstimage2.jpg");
     }
 
     @Test

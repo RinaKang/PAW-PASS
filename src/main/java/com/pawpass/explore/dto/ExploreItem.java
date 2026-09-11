@@ -12,6 +12,7 @@ public record ExploreItem(
         String id,
         String title,
         String addr,
+        String image,
         Double lat,
         Double lng,
         String dedupKey,
@@ -19,17 +20,23 @@ public record ExploreItem(
 ) {
     public static ExploreItem fromTour(TourSummaryResponse tour, String matchStatus) {
         // TourAPI 좌표 표기 관례: mapX=경도(longitude), mapY=위도(latitude)
-        return new ExploreItem("tourapi", tour.contentId(), tour.title(), tour.addr(),
+        return new ExploreItem("tourapi", tour.contentId(), tour.title(), tour.addr(), tour.image(),
                 tour.mapY(), tour.mapX(), dedupKey(tour.title()), matchStatus);
     }
 
+    /**
+     * KCISA 원본 데이터셋 자체에는 이미지 URL 필드가 없어서(2026-09-11 확인), FacilityService가 구글
+     * Places API(New)로 실시간 조회해 채워 넣은 값을 그대로 통과시킨다. place_id가 아직 없거나(배치 동기화
+     * 진행 중), 페이지당 사진 조회 상한(FacilityService.MAX_ITEMS_TO_FETCH_IMAGE)을 넘긴 항목은 null이라
+     * 프론트에서 플레이스홀더 이미지로 처리해야 한다.
+     */
     public static ExploreItem fromFacility(FacilitySummaryResponse facility, String matchStatus) {
-        return new ExploreItem("kcisa", facility.id(), facility.title(), facility.addr(),
+        return new ExploreItem("kcisa", facility.id(), facility.title(), facility.addr(), facility.image(),
                 facility.lat(), facility.lng(), dedupKey(facility.title()), matchStatus);
     }
 
     public ExploreItem withMatchStatus(String newMatchStatus) {
-        return new ExploreItem(source, id, title, addr, lat, lng, dedupKey, newMatchStatus);
+        return new ExploreItem(source, id, title, addr, image, lat, lng, dedupKey, newMatchStatus);
     }
 
     /**

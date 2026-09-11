@@ -53,9 +53,30 @@ class ExploreConditionMapperTest {
     }
 
     @Test
-    void CAFE는_tour_39_facility_카페로_매핑된다() {
+    void CAFE는_tour_39_facility_카페로_매핑되고_카페_세분류_필터까지_같이_붙는다() {
         assertThat(ExploreConditionMapper.toTourContentTypeId("CAFE")).contains("39");
         assertThat(ExploreConditionMapper.toFacilityCategory3Values("CAFE")).containsExactly("카페");
+        assertThat(ExploreConditionMapper.toTourCat1("CAFE")).isEqualTo("A05");
+        assertThat(ExploreConditionMapper.toTourCat2("CAFE")).isEqualTo("A0502");
+        assertThat(ExploreConditionMapper.toTourCat3("CAFE")).isEqualTo("A05020900");
+    }
+
+    @Test
+    void FOOD는_tour_39_facility_식당으로_매핑되고_카페와_달리_세분류_필터가_없다() {
+        assertThat(ExploreConditionMapper.toTourContentTypeId("FOOD")).contains("39");
+        assertThat(ExploreConditionMapper.toFacilityCategory3Values("FOOD")).containsExactly("식당");
+        assertThat(ExploreConditionMapper.toTourCat1("FOOD")).isNull();
+        assertThat(ExploreConditionMapper.toTourCat2("FOOD")).isNull();
+        assertThat(ExploreConditionMapper.toTourCat3("FOOD")).isNull();
+    }
+
+    @Test
+    void 세분류_필터가_없는_카테고리는_cat1_2_3이_전부_null이다() {
+        assertThat(ExploreConditionMapper.toTourCat1("NATURE")).isNull();
+        assertThat(ExploreConditionMapper.toTourCat1("CULTURE")).isNull();
+        assertThat(ExploreConditionMapper.toTourCat1("STAY")).isNull();
+        assertThat(ExploreConditionMapper.toTourCat1("UNKNOWN")).isNull();
+        assertThat(ExploreConditionMapper.toTourCat1(null)).isNull();
     }
 
     @Test

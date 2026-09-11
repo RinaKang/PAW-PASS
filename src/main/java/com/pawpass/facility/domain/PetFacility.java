@@ -96,6 +96,10 @@ public class PetFacility {
     @Column(name = "synced_at", nullable = false)
     private LocalDateTime syncedAt;
 
+    @Setter
+    @Column(name = "google_place_id", length = 255)
+    private String googlePlaceId; // Places API(New) place_id. 사진 이름/URL과 달리 캐싱 가능해서 여기만 저장, 사진은 매번 재조회
+
     @Builder
     public PetFacility(String id, String title, String category1, String category2, String category3,
                         String address, String zipcode, Double lat, Double lng, String tel, String url, String charge,

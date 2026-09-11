@@ -34,6 +34,11 @@ external-api:
     base-url: https://generativelanguage.googleapis.com
     api-key: ${GEMINI_API_KEY:}
     model: ${GEMINI_MODEL:gemini-3.5-flash}
+  google-places:
+    # KCISA 시설 대표사진용 (Places API New). 사진 이름/URL은 구글 정책상 캐싱 금지라 조회 시점마다
+    # 실시간으로 다시 받아야 함 - google_place_id만 배치 동기화 시점에 pet_facilities에 저장해서 재사용.
+    base-url: https://places.googleapis.com
+    api-key: ${GOOGLE_PLACES_API_KEY:}
 
 jwt:
   secret: ${JWT_SECRET:change-this-in-production-please-use-env-variable}

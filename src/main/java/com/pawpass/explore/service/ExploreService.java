@@ -45,11 +45,24 @@ public class ExploreService {
     );
 
     /**
-     * Gemini 무료 티어가 분당 5회로 요청을 제한한다  동시 실행 수를 낮춘다고 분당 총량 제한 자체가 없어지진 않으므로(그래서 완전한 해결책은
-     * 아님), 순간 버스트로 즉시 다 막히는 것만이라도 줄이는 용도 - 진짜 해결은 아래 computeOne()의
-     * "실패하면 확인필요로 대체" 쪽이다.
+     * Gemini 무료 티어가 분당 5회로 요청을 제한한다. 동시 실행 수를 올린다고 분당 총량 제한 자체가
+     * 없어지진 않아서 AI가 필요한 항목은 여전히 그 한도에 걸리지만, 실패해도 "확인필요"로 안전하게
+     * 대체하는 폴백이 이미 있어서(computeOne()) 예전처럼 3으로 낮게 유지할 이유가 없다.
+     * 규칙 기반만으로 끝나는 대다수 항목(실측상 90%+)은 병렬로 훨씬 빨리 끝나므로,
+     * petId를 넘긴 /explore 체감 대기시간(40건 기준 최대 2분 실측, 2026-09-11)을 줄이려고 올림.
      */
-    private static final int MATCH_CONCURRENCY = 3;
+    private static final int MATCH_CONCURRENCY = 8;
+
+    /**
+     * tour 항목 하나 매칭에 TourAPI만 3번(+규칙으로 못 걸러지면 Gemini까지) 필요해서 비용/시간 대부분이
+     * 여기서 나온다 - facility는 DB 조회 한 번뿐이고 규칙 커버리지도 훨씬 높아서(실측 93%) 상한을 안 둔다.
+     * petId를 넘긴 /explore가 체감상 너무 오래 걸린다는 실측(40건 기준 최대 2분, 2026-09-11) 이후,
+     * 비용이 제일 큰 tour 쪽만 상한을 둬서 AI/외부 API 호출 자체를 줄이는 방향으로 잡음
+     * (사용자 요청: "최대한 AI 안 쓰는 방향으로"). 상한을 넘긴 항목은 매칭을 아예 시도하지 않고
+     * 기본값("확인필요")으로 둔다 - petId 있는 기본 목록은 어차피 가능/조건부만 보여주므로 시각적으로도
+     * "판정했지만 애매함"과 구분이 안 되어 자연스럽다.
+     */
+    private static final int MAX_TOUR_ITEMS_TO_MATCH = 10;
 
     private final TourService tourService;
     private final FacilityService facilityService;
@@ -108,8 +121,13 @@ public class ExploreService {
         String lDongRegnCd = region == null ? null : region.lDongRegnCd();
         String lDongSignguCd = region == null ? null : region.lDongSignguCd();
         String contentTypeId = ExploreConditionMapper.toTourContentTypeId(category).orElse(null);
+        // CAFE처럼 contentTypeId(39=음식점)만으로는 안 갈라지는 카테고리는 cat1/cat2/cat3까지 추가로 넘긴다
+        // (그 외 카테고리는 전부 null이라 기존 동작과 동일) - ExploreConditionMapper 카테고리 주석 참고.
+        String cat1 = ExploreConditionMapper.toTourCat1(category);
+        String cat2 = ExploreConditionMapper.toTourCat2(category);
+        String cat3 = ExploreConditionMapper.toTourCat3(category);
 
-        return tourService.search(lDongRegnCd, lDongSignguCd, contentTypeId, page).stream()
+        return tourService.search(lDongRegnCd, lDongSignguCd, contentTypeId, cat1, cat2, cat3, page).stream()
                 .map(tour -> ExploreItem.fromTour(tour, DEFAULT_MATCH_STATUS))
                 .toList();
     }
@@ -148,10 +166,20 @@ public class ExploreService {
      * 줄지 않고, Gemini 무료 티어 분당 한도(5회)는 페이지 하나에 판정이 몇 건만 필요해도 쉽게 넘을 수 있다.
      * 그래서 항목 하나의 판정 실패(레이트리밋/타임아웃 등 무엇이든)가 전체 응답을 깨뜨리면 안 된다 -
      * 실패한 항목은 기본값("확인필요")으로 조용히 대체하고 나머지는 정상 반환한다.
+     * tour 항목은 MAX_TOUR_ITEMS_TO_MATCH개까지만 실제로 매칭을 시도한다 - 원래 순서(tour 먼저)는
+     * 그대로 유지하고, 상한을 넘긴 tour 항목만 매칭 자체를 건너뛴다(기본값 그대로).
      */
     private List<ExploreItem> computeMatchStatuses(List<ExploreItem> items, Pet pet) {
+        int[] remainingTourBudget = {MAX_TOUR_ITEMS_TO_MATCH};
         List<CompletableFuture<ExploreItem>> futures = items.stream()
-                .map(item -> CompletableFuture.supplyAsync(() -> computeOne(item, pet), matchExecutor))
+                .map(item -> {
+                    boolean isTour = "tourapi".equals(item.source());
+                    boolean withinBudget = !isTour || remainingTourBudget[0]-- > 0;
+                    if (!withinBudget) {
+                        return CompletableFuture.completedFuture(item); // 기본값("확인필요") 그대로, 매칭 시도 안 함
+                    }
+                    return CompletableFuture.supplyAsync(() -> computeOne(item, pet), matchExecutor);
+                })
                 .toList();
         return futures.stream().map(CompletableFuture::join).toList();
     }

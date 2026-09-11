@@ -1,5 +1,6 @@
 package com.pawpass.facility.service;
 
+import com.pawpass.facility.client.GooglePlacesClient;
 import com.pawpass.facility.client.KcisaApiClient;
 import com.pawpass.facility.domain.PetFacility;
 import com.pawpass.facility.dto.external.KcisaFacilityItem;
@@ -37,13 +38,23 @@ public class FacilitySyncService {
     // 현재 값(perPage=1000, ≈1.1MB)은 그 상한에서 충분히 여유 있어 그대로 유지.
     private static final int PAGE_SIZE = 1000;
 
+    /**
+     * Google Places Text Search 1건당 호출 1회 - 기존에 place_id가 없는 시설(현재 전량, 약 21,000건 추정)을
+     * 한 번의 동기화 실행에서 전부 해소하면 API 비용/시간이 한 번에 크게 튄다. 그래서 실행 1회당 새로 해소하는
+     * 건수에 상한을 두고, 나머지는 place_id 없이 저장했다가(이미지는 그냥 null로 내려감) 다음 실행들에서
+     * 점진적으로 채운다. 값은 잠정치라 실측 API 응답 시간/쿼터 보고 조정 필요.
+     */
+    private static final int MAX_NEW_PLACE_ID_RESOLUTIONS_PER_RUN = 300;
+
     private final KcisaApiClient kcisaApiClient;
     private final PetFacilityRepository petFacilityRepository;
+    private final GooglePlacesClient googlePlacesClient;
 
     public void syncAll() {
         int page = 1;
         int totalSaved = 0;
         int totalUnchanged = 0;
+        int remainingPlaceIdBudget = MAX_NEW_PLACE_ID_RESOLUTIONS_PER_RUN;
 
         while (true) {
             KcisaFacilityListResponse response = kcisaApiClient.fetchPage(page, PAGE_SIZE);
@@ -70,7 +81,19 @@ public class FacilitySyncService {
             for (Map.Entry<String, PetFacility> entry : candidates.entrySet()) {
                 PetFacility existing = existingById.get(entry.getKey());
                 PetFacility fresh = entry.getValue();
-                if (existing != null && Objects.equals(existing.getIssuedDate(), fresh.getIssuedDate())) {
+                boolean dataChanged = existing == null || !Objects.equals(existing.getIssuedDate(), fresh.getIssuedDate());
+
+                // place_id는 한 번 찾으면 안 바뀌므로 기존 값이 있으면 그대로 이어받고, 없을 때만(예산이 남아있으면) 새로 찾는다.
+                String placeId = existing != null ? existing.getGooglePlaceId() : null;
+                boolean placeIdNewlyResolved = false;
+                if (placeId == null && remainingPlaceIdBudget > 0) {
+                    placeId = googlePlacesClient.searchPlaceId(fresh.getTitle() + " " + fresh.getAddress());
+                    remainingPlaceIdBudget--;
+                    placeIdNewlyResolved = placeId != null;
+                }
+                fresh.setGooglePlaceId(placeId);
+
+                if (!dataChanged && !placeIdNewlyResolved) {
                     totalUnchanged++;
                     continue;
                 }
@@ -87,8 +110,9 @@ public class FacilitySyncService {
             page++;
         }
 
-        log.info("한국문화정보원 반려동물 동반 시설 동기화 완료 - {}건 저장(신규/변경), {}건 변경없음 스킵",
-                totalSaved, totalUnchanged);
+        int placeIdResolutionsUsed = MAX_NEW_PLACE_ID_RESOLUTIONS_PER_RUN - remainingPlaceIdBudget;
+        log.info("한국문화정보원 반려동물 동반 시설 동기화 완료 - {}건 저장(신규/변경), {}건 변경없음 스킵, google_place_id 신규 조회 {}건 시도",
+                totalSaved, totalUnchanged, placeIdResolutionsUsed);
     }
 
     private PetFacility toEntity(KcisaFacilityItem item) {

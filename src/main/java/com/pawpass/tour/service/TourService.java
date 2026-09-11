@@ -5,6 +5,7 @@ import com.pawpass.tour.dto.TourDetailResponse;
 import com.pawpass.tour.dto.TourSummaryResponse;
 import com.pawpass.tour.dto.external.TourAreaBasedListResponse;
 import com.pawpass.tour.dto.external.TourDetailCommonItem;
+import com.pawpass.tour.dto.external.TourDetailImageItem;
 import com.pawpass.tour.dto.external.TourDetailIntroItem;
 import com.pawpass.tour.dto.external.TourDetailPetTourItem;
 import lombok.RequiredArgsConstructor;
@@ -35,9 +36,21 @@ public class TourService {
      * GET /tours는 기존 3-args search()만 쓰므로 이 오버로드가 추가돼도 그 엔드포인트 동작은 그대로다.
      */
     public List<TourSummaryResponse> search(String lDongRegnCd, String lDongSignguCd, String category, int page) {
+        return search(lDongRegnCd, lDongSignguCd, category, null, null, null, page);
+    }
+
+    /**
+     * /explore의 카페(CAFE) 카테고리처럼, contentTypeId만으로는 안 갈라지는(39=음식점 안에 카페·일반식당이
+     * 섞여 나옴) 세분류가 필요할 때 cat1/cat2/cat3(TourAPI 구 분류체계)까지 추가로 넘긴다
+     * (explore/service/ExploreConditionMapper 참고). GET /tours는 이 오버로드를 쓰지 않으므로
+     * 기존 엔드포인트 동작에는 영향 없다.
+     */
+    public List<TourSummaryResponse> search(String lDongRegnCd, String lDongSignguCd, String category,
+                                              String cat1, String cat2, String cat3, int page) {
         TourAreaBasedListResponse response = tourApiClient.areaBasedList(
                 PAGE_SIZE, page, ARRANGE_MODIFIED_DESC, category,
-                lDongRegnCd, lDongSignguCd, null, null, null
+                lDongRegnCd, lDongSignguCd, null, null, null,
+                cat1, cat2, cat3
         );
 
         var items = response.response().body().items();
@@ -56,8 +69,9 @@ public class TourService {
         }
         TourDetailIntroItem intro = tourApiClient.detailIntro(contentId, common.contentTypeId());
         TourDetailPetTourItem pet = tourApiClient.detailPetTour(contentId);
+        List<TourDetailImageItem> images = tourApiClient.detailImage(contentId);
 
-        return TourDetailResponse.of(common, intro, pet);
+        return TourDetailResponse.of(common, intro, pet, images);
     }
 
     /**

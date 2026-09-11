@@ -63,16 +63,30 @@ final class ExploreConditionMapper {
 
     // ===== 카테고리 =====
 
-    private record CategoryMapping(String tourContentTypeId, List<String> facilityCategory3Values) {
+    /** cat1/cat2/cat3는 CAFE처럼 contentTypeId만으로 안 갈라지는 세분류가 필요할 때만 채움(그 외엔 전부 null). */
+    private record CategoryMapping(String tourContentTypeId, String tourCat1, String tourCat2, String tourCat3,
+                                     List<String> facilityCategory3Values) {
+        private CategoryMapping(String tourContentTypeId, List<String> facilityCategory3Values) {
+            this(tourContentTypeId, null, null, null, facilityCategory3Values);
+        }
     }
 
-    // 프론트 목업 카테고리(NATURE/CAFE/CULTURE/STAY) 기준. 1:N인 것(문화시설→박물관/미술관/문예회관,
-    // 숙박→펜션/호텔)은 실제 pet_facilities.category3 데이터를 조회해서 채웠다
-    // CAFE -> TourAPI contentTypeId=39(음식점)는 TourAPI가 카페만 따로 구분하는 상위 분류가 없어서
-    // 음식점과 함께 섞여 나온다 - 알려진 한계, 더 세분화하려면 lclsSystm 소분류 코드가 추가로 필요하다.
+    // 프론트 목업 카테고리(NATURE/CAFE/CULTURE/STAY) 기준 + 사용자 요청으로 추가한 FOOD(음식점).
+    // 1:N인 것(문화시설→박물관/미술관/문예회관, 숙박→펜션/호텔)은 실제 pet_facilities.category3 데이터를
+    // 조회해서 채웠다.
+    // CAFE/FOOD 둘 다 TourAPI contentTypeId=39(음식점) 안에 있는데, contentTypeId만으로는 카페와 일반
+    // 음식점이 안 갈라져서(구 분류체계 cat1/cat2/cat3 실측 결과: lclsSystm 신 분류체계는 카페/일반식당이
+    // 섞여서 나와 구분이 안 됨, 2026-09-12) CAFE만 cat1=A05/cat2=A0502/cat3=A05020900(카페/전통찻집)로
+    // 정밀 필터링한다(실측 확인: 해당 코드로 필터링 시 29건 전부 카페·디저트류, live-verified). FOOD는
+    // cat 필터 없이 39 전체를 받는다 - TourAPI가 "~카페 아닌 것만" 식의 제외 필터는 지원하지 않아서,
+    // 정밀하게 카페를 뺀 음식점만 거르려면 서로 다른 cat3 값마다 별도 호출+병합이 필요한데(예: A05020100
+    // 한식 등) 국내 반려동물 동반 음식점 데이터 자체가 적어(전국 72건, 2026-09-12 실측) 그 정도로
+    // 세분화할 실익이 낮다고 판단해 보류 - FOOD 카테고리는 카페로 태그된 일부 항목과 겹쳐 보일 수 있음.
+    // facility 쪽은 pet_facilities.category3="식당"(카페와 완전히 분리된 값, 실측 확인)이라 겹침 없음.
     private static final Map<String, CategoryMapping> CATEGORY_MAP = Map.of(
             "NATURE", new CategoryMapping("12", List.of("여행지")),
-            "CAFE", new CategoryMapping("39", List.of("카페")),
+            "CAFE", new CategoryMapping("39", "A05", "A0502", "A05020900", List.of("카페")),
+            "FOOD", new CategoryMapping("39", List.of("식당")),
             "CULTURE", new CategoryMapping("14", List.of("박물관", "미술관", "문예회관")),
             "STAY", new CategoryMapping("32", List.of("펜션", "호텔"))
     );
@@ -80,6 +94,19 @@ final class ExploreConditionMapper {
     /** 매핑 테이블에 없는 카테고리 값이면 필터 없이(Optional.empty) 전체 조회로 대체한다 - 값 하나 잘못 왔다고 막지 않음. */
     static Optional<String> toTourContentTypeId(String commonCategory) {
         return lookup(commonCategory).map(CategoryMapping::tourContentTypeId);
+    }
+
+    /** cat1/cat2/cat3 세분류가 없는 카테고리(NATURE/FOOD/CULTURE/STAY 등)는 전부 null - contentTypeId만으로 충분. */
+    static String toTourCat1(String commonCategory) {
+        return lookup(commonCategory).map(CategoryMapping::tourCat1).orElse(null);
+    }
+
+    static String toTourCat2(String commonCategory) {
+        return lookup(commonCategory).map(CategoryMapping::tourCat2).orElse(null);
+    }
+
+    static String toTourCat3(String commonCategory) {
+        return lookup(commonCategory).map(CategoryMapping::tourCat3).orElse(null);
     }
 
     /** 1:N이라 리스트로 반환 - 비어있으면(매핑 없음/카테고리 미지정) facility 쪽도 필터 없이 전체 조회. */

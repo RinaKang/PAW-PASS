@@ -1,6 +1,7 @@
 package com.pawpass.tour.dto;
 
 import com.pawpass.tour.dto.external.TourDetailCommonItem;
+import com.pawpass.tour.dto.external.TourDetailImageItem;
 import com.pawpass.tour.dto.external.TourDetailIntroItem;
 import com.pawpass.tour.dto.external.TourDetailPetTourItem;
 
@@ -17,14 +18,15 @@ public record TourDetailResponse(
         PetCondition petCondition,
         String issuedDate
 ) {
-    public static TourDetailResponse of(TourDetailCommonItem common, TourDetailIntroItem intro, TourDetailPetTourItem pet) {
+    public static TourDetailResponse of(TourDetailCommonItem common, TourDetailIntroItem intro,
+                                         TourDetailPetTourItem pet, List<TourDetailImageItem> images) {
         return new TourDetailResponse(
                 common.contentId(),
                 common.title(),
                 joinAddr(common.addr1(), common.addr2()),
                 common.tel(),
                 intro == null ? null : intro.hours(),
-                images(common.firstimage(), common.firstimage2()),
+                images(common.firstimage(), common.firstimage2(), images),
                 PetCondition.from(pet),
                 common.modifiedTime()
         );
@@ -37,7 +39,18 @@ public record TourDetailResponse(
         return addr1 + " " + addr2;
     }
 
-    private static List<String> images(String firstimage, String firstimage2) {
+    /**
+     * detailImage2(썸네일 갤러리)를 우선 쓰고, 그 관광지에 detailImage2 등록분이 없으면
+     * detailCommon2의 firstimage/firstimage2로 폴백한다 - 상세 화면에 이미지가 아예 안 뜨는 것보단 낫다.
+     */
+    private static List<String> images(String firstimage, String firstimage2, List<TourDetailImageItem> detailImages) {
+        List<String> thumbnails = detailImages == null ? List.of() : detailImages.stream()
+                .map(TourDetailImageItem::smallimageurl)
+                .filter(url -> url != null && !url.isBlank())
+                .toList();
+        if (!thumbnails.isEmpty()) {
+            return thumbnails;
+        }
         return Stream.of(firstimage, firstimage2)
                 .filter(url -> url != null && !url.isBlank())
                 .toList();

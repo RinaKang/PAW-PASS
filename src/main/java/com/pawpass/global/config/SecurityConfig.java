@@ -33,7 +33,17 @@ public class SecurityConfig {
             "/auth/logout",
             "/swagger-ui.html",
             "/swagger-ui/**",
-            "/v3/api-docs/**"
+            "/v3/api-docs/**",
+            // 관광지/시설 탐색은 로그인 없이도 가능해야 함(비로그인 브라우징) - 원래 여기 없었던 게 버그였음
+            // (2026-09-11, 마셍 리포트). /explore는 petId 없이 호출되면 원래도 전부 "확인필요"로 개인화
+            // 없이 동작하도록 이미 설계돼 있어서 비로그인 접근과 자연스럽게 맞음.
+            // 단 "/tours/*"·"/facilities/*"는 한 단계 경로만 매칭해서 "/tours/{id}/match" 같은 개인화
+            // 엔드포인트(펫 정보 다룸이라 로그인 필수)까지 같이 풀리지 않게 함 - "/**"를 쓰면 안 됨.
+            "/tours",
+            "/tours/*",
+            "/facilities",
+            "/facilities/*",
+            "/explore"
     };
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;

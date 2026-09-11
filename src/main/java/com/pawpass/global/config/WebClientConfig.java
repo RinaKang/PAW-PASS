@@ -36,6 +36,9 @@ public class WebClientConfig {
     @Value("${external-api.gemini-api.base-url}")
     private String geminiApiBaseUrl;
 
+    @Value("${external-api.google-places.base-url}")
+    private String googlePlacesBaseUrl;
+
     @Bean
     public WebClient tourApiWebClient() {
         return WebClient.builder()
@@ -56,6 +59,14 @@ public class WebClientConfig {
     public WebClient geminiApiWebClient() {
         return WebClient.builder()
                 .baseUrl(geminiApiBaseUrl)
+                .exchangeStrategies(appObjectMapperExchangeStrategies())
+                .build();
+    }
+
+    @Bean
+    public WebClient googlePlacesWebClient() {
+        return WebClient.builder()
+                .baseUrl(googlePlacesBaseUrl)
                 .exchangeStrategies(appObjectMapperExchangeStrategies())
                 .build();
     }
