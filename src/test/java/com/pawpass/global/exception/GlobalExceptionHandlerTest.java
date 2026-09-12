@@ -4,6 +4,7 @@ import com.pawpass.global.response.ApiResponse;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -24,5 +25,18 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(response.getBody().isSuccess()).isFalse();
         assertThat(response.getBody().getMessage()).contains("petId");
+    }
+
+    // 2026-09-13: POST /favorites에 source="tourapi"(소문자)를 보냈다가 DataSource enum이 대문자만
+    // 받아서 500이 났던 실제 사례 - DataSource 자체는 @JsonCreator로 따로 고쳤지만, 비슷한 유형의
+    // "본문이 DTO와 안 맞음" 문제 전반에 대한 방어망도 같이 넣는다.
+    @Test
+    void 요청_본문_파싱_실패는_500이_아니라_400으로_처리된다() {
+        HttpMessageNotReadableException e = new HttpMessageNotReadableException("파싱 실패", (org.springframework.http.HttpInputMessage) null);
+
+        ResponseEntity<ApiResponse<Object>> response = handler.handleMalformedBody(e);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody().isSuccess()).isFalse();
     }
 }
