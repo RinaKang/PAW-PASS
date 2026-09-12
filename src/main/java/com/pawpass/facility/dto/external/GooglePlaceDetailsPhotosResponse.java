@@ -16,6 +16,15 @@ public record GooglePlaceDetailsPhotosResponse(List<Photo> photos) {
 
     @JsonNaming(PropertyNamingStrategies.LowerCamelCaseStrategy.class)
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record Photo(String name) {
+    public record Photo(String name, List<AuthorAttribution> authorAttributions) {
+    }
+
+    /**
+     * 구글 정책상 사진을 노출하는 화면엔 이 저작자 표시를 같이 보여줘야 한다. uri는 기고자 프로필 링크
+     * (사진 URL이 아님 - authorAttributions.photoUri는 기고자 아바타라 여기선 안 씀, 헷갈리기 쉬움).
+     */
+    @JsonNaming(PropertyNamingStrategies.LowerCamelCaseStrategy.class)
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record AuthorAttribution(String displayName, String uri) {
     }
 }

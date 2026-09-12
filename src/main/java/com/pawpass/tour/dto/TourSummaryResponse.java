@@ -9,8 +9,15 @@ public record TourSummaryResponse(
         String tel,
         String image,
         Double mapX,
-        Double mapY
+        Double mapY,
+        String cat3
 ) {
+    /** cat3(구 분류체계 소분류) 없이 쓰는 기존 호출부 호환용 - explore 쪽 카페/음식점 구분 필터링에만 필요. */
+    public TourSummaryResponse(String contentId, String title, String addr, String tel, String image,
+                                Double mapX, Double mapY) {
+        this(contentId, title, addr, tel, image, mapX, mapY, null);
+    }
+
     public static TourSummaryResponse from(TourAreaItem item) {
         return new TourSummaryResponse(
                 item.contentId(),
@@ -19,7 +26,8 @@ public record TourSummaryResponse(
                 item.tel(),
                 item.firstimage(),
                 parseDouble(item.mapx()),
-                parseDouble(item.mapy())
+                parseDouble(item.mapy()),
+                item.cat3()
         );
     }
 

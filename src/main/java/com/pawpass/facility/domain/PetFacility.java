@@ -96,9 +96,12 @@ public class PetFacility {
     @Column(name = "synced_at", nullable = false)
     private LocalDateTime syncedAt;
 
+    // Places API(New) place_id - 배치가 아니라 FacilityService가 이 시설이 실제로 조회될 때 지연 해소해서 채운다.
+    // 사진 이름/URL과 달리 이 값은 캐싱 가능해서 여기만 저장하고, 사진 자체는 매번 재조회한다.
+    // null=아직 시도 안 함, ""=시도했는데 못 찾음(재시도 안 함), 그 외=실제 place_id.
     @Setter
     @Column(name = "google_place_id", length = 255)
-    private String googlePlaceId; // Places API(New) place_id. 사진 이름/URL과 달리 캐싱 가능해서 여기만 저장, 사진은 매번 재조회
+    private String googlePlaceId;
 
     @Builder
     public PetFacility(String id, String title, String category1, String category2, String category3,

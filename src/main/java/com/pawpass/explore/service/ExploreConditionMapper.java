@@ -63,11 +63,24 @@ final class ExploreConditionMapper {
 
     // ===== 카테고리 =====
 
-    /** cat1/cat2/cat3는 CAFE처럼 contentTypeId만으로 안 갈라지는 세분류가 필요할 때만 채움(그 외엔 전부 null). */
+    /**
+     * cat1/cat2/cat3는 CAFE처럼 contentTypeId만으로 안 갈라지는 세분류를 "포함"시킬 때만 채움(그 외엔 null).
+     * excludedTourCat3는 반대로 FOOD처럼 특정 cat3 값을 "제외"시킬 때만 채움(TourAPI가 제외 필터 자체를
+     * 지원 안 해서, 서버가 응답을 받은 뒤 이 값과 일치하는 항목을 걸러내는 용도 - ExploreService 참고).
+     */
     private record CategoryMapping(String tourContentTypeId, String tourCat1, String tourCat2, String tourCat3,
-                                     List<String> facilityCategory3Values) {
+                                     String excludedTourCat3, List<String> facilityCategory3Values) {
         private CategoryMapping(String tourContentTypeId, List<String> facilityCategory3Values) {
-            this(tourContentTypeId, null, null, null, facilityCategory3Values);
+            this(tourContentTypeId, null, null, null, null, facilityCategory3Values);
+        }
+
+        private CategoryMapping(String tourContentTypeId, String tourCat1, String tourCat2, String tourCat3,
+                                 List<String> facilityCategory3Values) {
+            this(tourContentTypeId, tourCat1, tourCat2, tourCat3, null, facilityCategory3Values);
+        }
+
+        private CategoryMapping(String tourContentTypeId, List<String> facilityCategory3Values, String excludedTourCat3) {
+            this(tourContentTypeId, null, null, null, excludedTourCat3, facilityCategory3Values);
         }
     }
 
@@ -77,16 +90,19 @@ final class ExploreConditionMapper {
     // CAFE/FOOD 둘 다 TourAPI contentTypeId=39(음식점) 안에 있는데, contentTypeId만으로는 카페와 일반
     // 음식점이 안 갈라져서(구 분류체계 cat1/cat2/cat3 실측 결과: lclsSystm 신 분류체계는 카페/일반식당이
     // 섞여서 나와 구분이 안 됨, 2026-09-12) CAFE만 cat1=A05/cat2=A0502/cat3=A05020900(카페/전통찻집)로
-    // 정밀 필터링한다(실측 확인: 해당 코드로 필터링 시 29건 전부 카페·디저트류, live-verified). FOOD는
-    // cat 필터 없이 39 전체를 받는다 - TourAPI가 "~카페 아닌 것만" 식의 제외 필터는 지원하지 않아서,
-    // 정밀하게 카페를 뺀 음식점만 거르려면 서로 다른 cat3 값마다 별도 호출+병합이 필요한데(예: A05020100
-    // 한식 등) 국내 반려동물 동반 음식점 데이터 자체가 적어(전국 72건, 2026-09-12 실측) 그 정도로
-    // 세분화할 실익이 낮다고 판단해 보류 - FOOD 카테고리는 카페로 태그된 일부 항목과 겹쳐 보일 수 있음.
+    // 정밀 필터링한다(실측 확인: 해당 코드로 필터링 시 29건 전부 카페·디저트류, live-verified).
+    // FOOD 쪽은 TourAPI가 "~카페 아닌 것만" 식의 서버단 제외 필터를 지원하지 않아서, cat3="A05020900"
+    // (카페)으로 명시 태그된 항목만 응답을 받은 뒤 ExploreService에서 걸러낸다(CAFE_TOUR_CAT3 상수 재사용).
+    // 2026-09-12 실사용 테스트에서 FOOD 결과 대부분이 카페였던 걸 이걸로 고쳤다 - 다만 cat3 태그가 아예
+    // 없는 항목(전국 72건 중 23건, 실측)까지는 걸러내지 못한다(그중 일부는 실제로도 카페) - TourAPI
+    // 원본 데이터 자체의 한계라 서버에서 더 할 수 있는 게 없음, 알려진 잔여 한계로 남겨둠.
     // facility 쪽은 pet_facilities.category3="식당"(카페와 완전히 분리된 값, 실측 확인)이라 겹침 없음.
+    private static final String CAFE_TOUR_CAT3 = "A05020900";
+
     private static final Map<String, CategoryMapping> CATEGORY_MAP = Map.of(
             "NATURE", new CategoryMapping("12", List.of("여행지")),
-            "CAFE", new CategoryMapping("39", "A05", "A0502", "A05020900", List.of("카페")),
-            "FOOD", new CategoryMapping("39", List.of("식당")),
+            "CAFE", new CategoryMapping("39", "A05", "A0502", CAFE_TOUR_CAT3, List.of("카페")),
+            "FOOD", new CategoryMapping("39", List.of("식당"), CAFE_TOUR_CAT3),
             "CULTURE", new CategoryMapping("14", List.of("박물관", "미술관", "문예회관")),
             "STAY", new CategoryMapping("32", List.of("펜션", "호텔"))
     );
@@ -107,6 +123,11 @@ final class ExploreConditionMapper {
 
     static String toTourCat3(String commonCategory) {
         return lookup(commonCategory).map(CategoryMapping::tourCat3).orElse(null);
+    }
+
+    /** 이 값과 cat3가 일치하는 tour 항목은 응답에서 제외해야 한다(FOOD만 해당, 그 외엔 전부 null). */
+    static String toExcludedTourCat3(String commonCategory) {
+        return lookup(commonCategory).map(CategoryMapping::excludedTourCat3).orElse(null);
     }
 
     /** 1:N이라 리스트로 반환 - 비어있으면(매핑 없음/카테고리 미지정) facility 쪽도 필터 없이 전체 조회. */

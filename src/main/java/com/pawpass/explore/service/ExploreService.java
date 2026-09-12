@@ -2,6 +2,7 @@ package com.pawpass.explore.service;
 
 import com.pawpass.explore.dto.ExploreItem;
 import com.pawpass.facility.service.FacilityService;
+import com.pawpass.global.util.GeoUtils;
 import com.pawpass.matching.dto.MatchResponse;
 import com.pawpass.matching.service.MatchingService;
 import com.pawpass.pet.domain.Pet;
@@ -126,8 +127,12 @@ public class ExploreService {
         String cat1 = ExploreConditionMapper.toTourCat1(category);
         String cat2 = ExploreConditionMapper.toTourCat2(category);
         String cat3 = ExploreConditionMapper.toTourCat3(category);
+        // FOOD처럼 서버단 "제외" 필터가 없는 카테고리는, 응답을 받은 뒤 이 cat3와 일치하는 항목(카페로 명시
+        // 태그된 것)만 걸러낸다 - TourAPI 자체가 제외 필터를 지원하지 않아서 클라이언트 쪽에서 처리한다.
+        String excludedCat3 = ExploreConditionMapper.toExcludedTourCat3(category);
 
         return tourService.search(lDongRegnCd, lDongSignguCd, contentTypeId, cat1, cat2, cat3, page).stream()
+                .filter(tour -> excludedCat3 == null || !excludedCat3.equals(tour.cat3()))
                 .map(tour -> ExploreItem.fromTour(tour, DEFAULT_MATCH_STATUS))
                 .toList();
     }
@@ -214,19 +219,8 @@ public class ExploreService {
      */
     private boolean isSamePlace(ExploreItem a, ExploreItem b) {
         if (a.lat() != null && a.lng() != null && b.lat() != null && b.lng() != null) {
-            return distanceMeters(a.lat(), a.lng(), b.lat(), b.lng()) <= DEDUP_DISTANCE_METERS;
+            return GeoUtils.distanceMeters(a.lat(), a.lng(), b.lat(), b.lng()) <= DEDUP_DISTANCE_METERS;
         }
         return a.dedupKey().equals(b.dedupKey());
-    }
-
-    private double distanceMeters(double lat1, double lng1, double lat2, double lng2) {
-        double earthRadiusMeters = 6_371_000;
-        double dLat = Math.toRadians(lat2 - lat1);
-        double dLng = Math.toRadians(lng2 - lng1);
-        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
-                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
-                * Math.sin(dLng / 2) * Math.sin(dLng / 2);
-        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        return earthRadiusMeters * c;
     }
 }

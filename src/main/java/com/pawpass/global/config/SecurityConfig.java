@@ -43,6 +43,9 @@ public class SecurityConfig {
             "/tours/*",
             "/facilities",
             "/facilities/*",
+            // /facilities/{id}/image(2026-09-12 추가)도 사진 자체는 개인화 정보가 아니라 같은 원칙으로
+            // 공개 - "/match"까지 같이 풀리지 않게 "/image" 한 단계만 정확히 매칭한다.
+            "/facilities/*/image",
             "/explore"
     };
 

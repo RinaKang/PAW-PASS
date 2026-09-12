@@ -13,6 +13,7 @@ public record ExploreItem(
         String title,
         String addr,
         String image,
+        String imageAttribution,
         Double lat,
         Double lng,
         String dedupKey,
@@ -20,23 +21,25 @@ public record ExploreItem(
 ) {
     public static ExploreItem fromTour(TourSummaryResponse tour, String matchStatus) {
         // TourAPI 좌표 표기 관례: mapX=경도(longitude), mapY=위도(latitude)
-        return new ExploreItem("tourapi", tour.contentId(), tour.title(), tour.addr(), tour.image(),
+        // TourAPI 자체 이미지라 구글 Places 저작자 표시 대상이 아님 - imageAttribution은 항상 null.
+        return new ExploreItem("tourapi", tour.contentId(), tour.title(), tour.addr(), tour.image(), null,
                 tour.mapY(), tour.mapX(), dedupKey(tour.title()), matchStatus);
     }
 
     /**
      * KCISA 원본 데이터셋 자체에는 이미지 URL 필드가 없어서(2026-09-11 확인), FacilityService가 구글
-     * Places API(New)로 실시간 조회해 채워 넣은 값을 그대로 통과시킨다. place_id가 아직 없거나(배치 동기화
-     * 진행 중), 페이지당 사진 조회 상한(FacilityService.MAX_ITEMS_TO_FETCH_IMAGE)을 넘긴 항목은 null이라
-     * 프론트에서 플레이스홀더 이미지로 처리해야 한다.
+     * Places API(New)로 실시간 조회해 채워 넣은 값(과 저작자 표시)을 그대로 통과시킨다. place_id가 아직
+     * 없거나(조회 시점에 지연 해소, FacilityService.resolvePlaceId 참고), 페이지당 사진 조회 상한
+     * (FacilityService.MAX_ITEMS_TO_FETCH_IMAGE)을 넘긴 항목은 null이라 프론트에서 플레이스홀더 이미지로
+     * 처리해야 한다. imageAttribution이 있으면(구글 정책상) 사진과 같이 화면에 표시해야 한다.
      */
     public static ExploreItem fromFacility(FacilitySummaryResponse facility, String matchStatus) {
         return new ExploreItem("kcisa", facility.id(), facility.title(), facility.addr(), facility.image(),
-                facility.lat(), facility.lng(), dedupKey(facility.title()), matchStatus);
+                facility.imageAttribution(), facility.lat(), facility.lng(), dedupKey(facility.title()), matchStatus);
     }
 
     public ExploreItem withMatchStatus(String newMatchStatus) {
-        return new ExploreItem(source, id, title, addr, image, lat, lng, dedupKey, newMatchStatus);
+        return new ExploreItem(source, id, title, addr, image, imageAttribution, lat, lng, dedupKey, newMatchStatus);
     }
 
     /**

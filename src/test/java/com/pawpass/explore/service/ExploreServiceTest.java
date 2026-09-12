@@ -47,7 +47,7 @@ class ExploreServiceTest {
     @Test
     void tourapi_항목은_image가_그대로_실리고_kcisa_항목은_null이다() {
         TourSummaryResponse tour = new TourSummaryResponse("t1", "제목", "주소", "tel", "http://img.jpg", 1.0, 1.0);
-        FacilitySummaryResponse facility = new FacilitySummaryResponse("f1", "다른곳", "주소2", "tel", 90.0, 90.0, null);
+        FacilitySummaryResponse facility = new FacilitySummaryResponse("f1", "다른곳", "주소2", "tel", 90.0, 90.0, null, null);
 
         when(tourService.search(null, null, null, null, null, null, 1)).thenReturn(List.of(tour));
         when(facilityService.search(null, null, 1)).thenReturn(List.of(facility));
@@ -65,8 +65,8 @@ class ExploreServiceTest {
     void 좌표가_50m_이내면_제목이_달라도_같은_장소로_보고_tourapi가_우선한다() {
         // 서울시청 근처 좌표, 두 번째 좌표는 약 30m 정도만 떨어져 있음
         TourSummaryResponse tour = new TourSummaryResponse("t1", "행복 펜션", "서울시", "tel", "img", 126.9780, 37.5665);
-        FacilitySummaryResponse duplicate = new FacilitySummaryResponse("f1", "다른이름 카페", "서울시 다른표기", "tel2", 37.5667, 126.9782, null);
-        FacilitySummaryResponse unique = new FacilitySummaryResponse("f2", "먼 장소", "부산시", "tel3", 35.1796, 129.0756, null);
+        FacilitySummaryResponse duplicate = new FacilitySummaryResponse("f1", "다른이름 카페", "서울시 다른표기", "tel2", 37.5667, 126.9782, null, null);
+        FacilitySummaryResponse unique = new FacilitySummaryResponse("f2", "먼 장소", "부산시", "tel3", 35.1796, 129.0756, null, null);
 
         when(tourService.search(null, null, null, null, null, null, 1)).thenReturn(List.of(tour));
         when(facilityService.search(null, null, 1)).thenReturn(List.of(duplicate, unique));
@@ -81,7 +81,7 @@ class ExploreServiceTest {
     @Test
     void 좌표가_충분히_멀면_같은_제목이어도_둘_다_남는다() {
         TourSummaryResponse tour = new TourSummaryResponse("t1", "행복 펜션", "서울시", "tel", "img", 126.9780, 37.5665);
-        FacilitySummaryResponse farAway = new FacilitySummaryResponse("f1", "행복 펜션", "서울시", "tel2", 35.1796, 129.0756, null);
+        FacilitySummaryResponse farAway = new FacilitySummaryResponse("f1", "행복 펜션", "서울시", "tel2", 35.1796, 129.0756, null, null);
 
         when(tourService.search(null, null, null, null, null, null, 1)).thenReturn(List.of(tour));
         when(facilityService.search(null, null, 1)).thenReturn(List.of(farAway));
@@ -94,7 +94,7 @@ class ExploreServiceTest {
     @Test
     void 좌표가_없으면_제목_정규화로_폴백한다() {
         TourSummaryResponse tour = new TourSummaryResponse("t1", "행복 펜션", "서울시", "tel", "img", null, null);
-        FacilitySummaryResponse duplicate = new FacilitySummaryResponse("f1", "행복 펜션", "서울시 다른표기", "tel2", null, null, null);
+        FacilitySummaryResponse duplicate = new FacilitySummaryResponse("f1", "행복 펜션", "서울시 다른표기", "tel2", null, null, null, null);
 
         when(tourService.search(null, null, null, null, null, null, 1)).thenReturn(List.of(tour));
         when(facilityService.search(null, null, 1)).thenReturn(List.of(duplicate));
@@ -130,7 +130,7 @@ class ExploreServiceTest {
     @Test
     void petId가_있으면_항목마다_실제_매칭을_계산한다() {
         TourSummaryResponse tour = new TourSummaryResponse("t1", "제목", "주소", "tel", "img", 1.0, 1.0);
-        FacilitySummaryResponse facility = new FacilitySummaryResponse("f1", "다른 장소", "부산시", "tel3", 35.0, 129.0, null);
+        FacilitySummaryResponse facility = new FacilitySummaryResponse("f1", "다른 장소", "부산시", "tel3", 35.0, 129.0, null, null);
 
         when(tourService.search(null, null, null, null, null, null, 1)).thenReturn(List.of(tour));
         when(facilityService.search(null, null, 1)).thenReturn(List.of(facility));
@@ -218,7 +218,7 @@ class ExploreServiceTest {
         for (int i = 1; i <= 12; i++) {
             tours.add(new TourSummaryResponse("t" + i, "제목" + i, "주소" + i, "tel", "img", (double) i, (double) i));
         }
-        FacilitySummaryResponse facility = new FacilitySummaryResponse("f1", "시설", "주소f", "tel", 90.0, 90.0, null);
+        FacilitySummaryResponse facility = new FacilitySummaryResponse("f1", "시설", "주소f", "tel", 90.0, 90.0, null, null);
 
         when(tourService.search(null, null, null, null, null, null, 1)).thenReturn(tours);
         when(facilityService.search(null, null, 1)).thenReturn(List.of(facility));
@@ -275,9 +275,9 @@ class ExploreServiceTest {
 
     @Test
     void CULTURE_카테고리는_tour_문화시설코드와_facility_박물관_미술관_문예회관을_합쳐_조회한다() {
-        FacilitySummaryResponse museum = new FacilitySummaryResponse("m1", "박물관1", "주소", "tel", 1.0, 1.0, null);
-        FacilitySummaryResponse gallery = new FacilitySummaryResponse("g1", "미술관1", "주소", "tel", 2.0, 2.0, null);
-        FacilitySummaryResponse hall = new FacilitySummaryResponse("h1", "문예회관1", "주소", "tel", 3.0, 3.0, null);
+        FacilitySummaryResponse museum = new FacilitySummaryResponse("m1", "박물관1", "주소", "tel", 1.0, 1.0, null, null);
+        FacilitySummaryResponse gallery = new FacilitySummaryResponse("g1", "미술관1", "주소", "tel", 2.0, 2.0, null, null);
+        FacilitySummaryResponse hall = new FacilitySummaryResponse("h1", "문예회관1", "주소", "tel", 3.0, 3.0, null, null);
 
         when(tourService.search(null, null, "14", null, null, null, 1)).thenReturn(List.of());
         when(facilityService.search(null, "박물관", 1)).thenReturn(List.of(museum));
@@ -292,8 +292,8 @@ class ExploreServiceTest {
 
     @Test
     void STAY_카테고리는_tour_숙박코드와_facility_펜션_호텔을_합쳐_조회한다() {
-        FacilitySummaryResponse pension = new FacilitySummaryResponse("p1", "펜션1", "주소", "tel", 1.0, 1.0, null);
-        FacilitySummaryResponse hotel = new FacilitySummaryResponse("h1", "호텔1", "주소", "tel", 2.0, 2.0, null);
+        FacilitySummaryResponse pension = new FacilitySummaryResponse("p1", "펜션1", "주소", "tel", 1.0, 1.0, null, null);
+        FacilitySummaryResponse hotel = new FacilitySummaryResponse("h1", "호텔1", "주소", "tel", 2.0, 2.0, null, null);
 
         when(tourService.search(null, null, "32", null, null, null, 1)).thenReturn(List.of());
         when(facilityService.search(null, "펜션", 1)).thenReturn(List.of(pension));
@@ -309,7 +309,7 @@ class ExploreServiceTest {
     // (A05/A0502/A05020900, 카페·전통찻집 세분류)까지 같이 넘긴다 - 2026-09-12 실측 확인.
     @Test
     void CAFE_카테고리는_tour_음식점코드에_카페_세분류_필터까지_같이_넘긴다() {
-        FacilitySummaryResponse cafe = new FacilitySummaryResponse("c1", "카페1", "주소", "tel", 1.0, 1.0, null);
+        FacilitySummaryResponse cafe = new FacilitySummaryResponse("c1", "카페1", "주소", "tel", 1.0, 1.0, null, null);
 
         when(tourService.search(null, null, "39", "A05", "A0502", "A05020900", 1)).thenReturn(List.of());
         when(facilityService.search(null, "카페", 1)).thenReturn(List.of(cafe));
@@ -320,19 +320,25 @@ class ExploreServiceTest {
         assertThat(result).extracting(ExploreItem::id).containsExactly("c1");
     }
 
-    // FOOD(음식점)는 cat1/cat2/cat3 세분류 없이 39 전체를 받는다(카페와 겹칠 수 있음 - 알려진 한계,
-    // ExploreConditionMapper 주석 참고). facility 쪽은 category3="식당"이라 카페와 안 겹친다.
+    // FOOD(음식점)는 cat1/cat2/cat3 세분류 필터 없이 39 전체를 요청은 하지만, 응답에서 카페로 명시
+    // 태그된 항목(cat3="A05020900")은 걸러낸다 - 2026-09-12 실사용 테스트에서 FOOD 결과 대부분이 카페였던
+    // 문제를 고친 것. facility 쪽은 category3="식당"이라 애초에 카페와 안 겹친다.
     @Test
-    void FOOD_카테고리는_tour_음식점코드_전체와_facility_식당을_조회한다() {
-        FacilitySummaryResponse restaurant = new FacilitySummaryResponse("r1", "식당1", "주소", "tel", 1.0, 1.0, null);
+    void FOOD_카테고리는_tour_음식점코드_전체를_요청하되_카페로_태그된_항목은_걸러낸다() {
+        TourSummaryResponse taggedCafe = new TourSummaryResponse("t1", "카페처럼보이는곳", "주소", "tel", "img", 1.0, 1.0, "A05020900");
+        TourSummaryResponse untaggedItem = new TourSummaryResponse("t2", "태그없는곳", "주소", "tel", "img", 2.0, 2.0, null);
+        TourSummaryResponse taggedRestaurant = new TourSummaryResponse("t3", "한식당", "주소", "tel", "img", 3.0, 3.0, "A05020100");
+        FacilitySummaryResponse restaurant = new FacilitySummaryResponse("r1", "식당1", "주소", "tel", 1.0, 1.0, null, null);
 
-        when(tourService.search(null, null, "39", null, null, null, 1)).thenReturn(List.of());
+        when(tourService.search(null, null, "39", null, null, null, 1))
+                .thenReturn(List.of(taggedCafe, untaggedItem, taggedRestaurant));
         when(facilityService.search(null, "식당", 1)).thenReturn(List.of(restaurant));
 
         List<ExploreItem> result = exploreService.explore(1L, null, "FOOD", null, null, 1);
 
-        verify(tourService).search(null, null, "39", null, null, null, 1);
-        assertThat(result).extracting(ExploreItem::id).containsExactly("r1");
+        // cat3="A05020900"로 명시 태그된 t1만 빠지고, 태그 없는 t2(알려진 잔여 한계 - 걸러낼 수 없음)와
+        // 카페가 아닌 태그의 t3, facility 쪽 r1은 그대로 남는다
+        assertThat(result).extracting(ExploreItem::id).containsExactlyInAnyOrder("t2", "t3", "r1");
     }
 
     @Test
@@ -349,7 +355,7 @@ class ExploreServiceTest {
     @Test
     void 지역_카테고리_둘_다_생략하면_양쪽_다_필터없이_전체_조회한다() {
         TourSummaryResponse tour = new TourSummaryResponse("t1", "제목", "주소", "tel", "img", 1.0, 1.0);
-        FacilitySummaryResponse facility = new FacilitySummaryResponse("f1", "다른곳", "주소2", "tel", 90.0, 90.0, null);
+        FacilitySummaryResponse facility = new FacilitySummaryResponse("f1", "다른곳", "주소2", "tel", 90.0, 90.0, null, null);
 
         when(tourService.search(null, null, null, null, null, null, 1)).thenReturn(List.of(tour));
         when(facilityService.search(null, null, 1)).thenReturn(List.of(facility));

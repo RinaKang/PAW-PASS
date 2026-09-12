@@ -62,12 +62,27 @@ class ExploreConditionMapperTest {
     }
 
     @Test
-    void FOOD는_tour_39_facility_식당으로_매핑되고_카페와_달리_세분류_필터가_없다() {
+    void FOOD는_tour_39_facility_식당으로_매핑되고_카페와_달리_포함_필터_대신_제외_필터를_쓴다() {
         assertThat(ExploreConditionMapper.toTourContentTypeId("FOOD")).contains("39");
         assertThat(ExploreConditionMapper.toFacilityCategory3Values("FOOD")).containsExactly("식당");
         assertThat(ExploreConditionMapper.toTourCat1("FOOD")).isNull();
         assertThat(ExploreConditionMapper.toTourCat2("FOOD")).isNull();
         assertThat(ExploreConditionMapper.toTourCat3("FOOD")).isNull();
+        assertThat(ExploreConditionMapper.toExcludedTourCat3("FOOD")).isEqualTo("A05020900");
+    }
+
+    @Test
+    void CAFE는_포함_필터를_쓰므로_제외_필터는_없다() {
+        assertThat(ExploreConditionMapper.toExcludedTourCat3("CAFE")).isNull();
+    }
+
+    @Test
+    void 제외_필터가_없는_카테고리는_전부_null이다() {
+        assertThat(ExploreConditionMapper.toExcludedTourCat3("NATURE")).isNull();
+        assertThat(ExploreConditionMapper.toExcludedTourCat3("CULTURE")).isNull();
+        assertThat(ExploreConditionMapper.toExcludedTourCat3("STAY")).isNull();
+        assertThat(ExploreConditionMapper.toExcludedTourCat3("UNKNOWN")).isNull();
+        assertThat(ExploreConditionMapper.toExcludedTourCat3(null)).isNull();
     }
 
     @Test

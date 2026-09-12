@@ -32,6 +32,7 @@ public record TourAreaItem(
         String lDongSignguCd,
         String lclsSystm1,
         String lclsSystm2,
-        String lclsSystm3
+        String lclsSystm3,
+        String cat3
 ) {
 }
