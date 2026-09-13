@@ -67,20 +67,32 @@ final class ExploreConditionMapper {
      * cat1/cat2/cat3는 CAFE처럼 contentTypeId만으로 안 갈라지는 세분류를 "포함"시킬 때만 채움(그 외엔 null).
      * excludedTourCat3는 반대로 FOOD처럼 특정 cat3 값을 "제외"시킬 때만 채움(TourAPI가 제외 필터 자체를
      * 지원 안 해서, 서버가 응답을 받은 뒤 이 값과 일치하는 항목을 걸러내는 용도 - ExploreService 참고).
+     * excludeCafeLikeNames는 cat3 태그가 아예 없어서 위 필터로 못 거른 항목을 이름 키워드로 한 번 더
+     * 거를지 여부(FOOD만 true, 2026-09-13 추가 - CAFE_NAME_KEYWORDS 참고).
+     * facilityOnly는 HOSPITAL처럼 TourAPI 쪽엔 대응 개념 자체가 없는 카테고리용(2026-09-13 추가) - true면
+     * tourContentTypeId 유무와 무관하게 ExploreService가 tour 조회 자체를 건너뛴다(불필요한 TourAPI
+     * 호출도 안 나감 - "전체 조회"가 아니라 "결과 없음"이 맞는 의미라서, contentTypeId를 null로 두는
+     * 것만으로는 표현이 안 됨).
      */
     private record CategoryMapping(String tourContentTypeId, String tourCat1, String tourCat2, String tourCat3,
-                                     String excludedTourCat3, List<String> facilityCategory3Values) {
+                                     String excludedTourCat3, boolean excludeCafeLikeNames, boolean facilityOnly,
+                                     List<String> facilityCategory3Values) {
         private CategoryMapping(String tourContentTypeId, List<String> facilityCategory3Values) {
-            this(tourContentTypeId, null, null, null, null, facilityCategory3Values);
+            this(tourContentTypeId, null, null, null, null, false, false, facilityCategory3Values);
         }
 
         private CategoryMapping(String tourContentTypeId, String tourCat1, String tourCat2, String tourCat3,
                                  List<String> facilityCategory3Values) {
-            this(tourContentTypeId, tourCat1, tourCat2, tourCat3, null, facilityCategory3Values);
+            this(tourContentTypeId, tourCat1, tourCat2, tourCat3, null, false, false, facilityCategory3Values);
         }
 
         private CategoryMapping(String tourContentTypeId, List<String> facilityCategory3Values, String excludedTourCat3) {
-            this(tourContentTypeId, null, null, null, excludedTourCat3, facilityCategory3Values);
+            this(tourContentTypeId, null, null, null, excludedTourCat3, true, false, facilityCategory3Values);
+        }
+
+        /** tour 대응 개념이 아예 없는 카테고리용(facilityOnly=true, tourContentTypeId는 의미 없어 null). */
+        private CategoryMapping(List<String> facilityCategory3Values) {
+            this(null, null, null, null, null, false, true, facilityCategory3Values);
         }
     }
 
@@ -104,7 +116,11 @@ final class ExploreConditionMapper {
             "CAFE", new CategoryMapping("39", "A05", "A0502", CAFE_TOUR_CAT3, List.of("카페")),
             "FOOD", new CategoryMapping("39", List.of("식당"), CAFE_TOUR_CAT3),
             "CULTURE", new CategoryMapping("14", List.of("박물관", "미술관", "문예회관")),
-            "STAY", new CategoryMapping("32", List.of("펜션", "호텔"))
+            "STAY", new CategoryMapping("32", List.of("펜션", "호텔")),
+            // HOSPITAL(2026-09-13 추가): TourAPI는 관광지 중심 API라 "동물병원" 개념 자체가 없음(관광공사
+            // contentTypeId 8개 중 대응되는 게 없음) - facility(KCISA) 쪽만 존재하는 카테고리라 facilityOnly로
+            // 처리한다. pet_facilities.category3="동물병원"(실측 4,487건, 이번 세션 초반 카테고리 분포 조회 때 확인됨).
+            "HOSPITAL", new CategoryMapping(List.of("동물병원"))
     );
 
     /** 매핑 테이블에 없는 카테고리 값이면 필터 없이(Optional.empty) 전체 조회로 대체한다 - 값 하나 잘못 왔다고 막지 않음. */
@@ -128,6 +144,33 @@ final class ExploreConditionMapper {
     /** 이 값과 cat3가 일치하는 tour 항목은 응답에서 제외해야 한다(FOOD만 해당, 그 외엔 전부 null). */
     static String toExcludedTourCat3(String commonCategory) {
         return lookup(commonCategory).map(CategoryMapping::excludedTourCat3).orElse(null);
+    }
+
+    /** true면 이 카테고리는 tour(TourAPI) 쪽에 대응 개념이 아예 없다는 뜻 - ExploreService가 tour 조회 자체를 건너뛴다. */
+    static boolean isFacilityOnly(String commonCategory) {
+        return lookup(commonCategory).map(CategoryMapping::facilityOnly).orElse(false);
+    }
+
+    // cat3 태그가 아예 없어서(전국 72건 중 23건, 실측) 위 cat3 필터로는 못 거르는 카페를 이름으로 한 번 더
+    // 거른다 - 실제 태그 없는 항목들 표본에서 카페/디저트류 상당수가 이름에 이 단어들을 포함하고 있었다
+    // (예: "누닝 펫푸드카페", "맥파이앤타이거 성수티룸", "도깨비젤라또"). 완벽하진 않음(이름에 힌트가
+    // 없는 카페는 여전히 못 거름, "감자밭"처럼 카페가 아닌데 이름이 애매한 경우는 원래도 안 걸러짐) -
+    // 사용자 요청(2026-09-13: "최대한 식당만 뜨게끔")에 대한 추가 보강.
+    private static final List<String> CAFE_NAME_KEYWORDS = List.of(
+            "카페", "커피", "티룸", "찻집", "베이커리", "젤라또", "디저트", "cafe", "coffee"
+    );
+
+    /** FOOD만 true - 다른 카테고리는 이름 기반 필터링을 적용하지 않는다. */
+    static boolean shouldExcludeCafeLikeNames(String commonCategory) {
+        return lookup(commonCategory).map(CategoryMapping::excludeCafeLikeNames).orElse(false);
+    }
+
+    static boolean looksLikeCafeByName(String title) {
+        if (title == null) {
+            return false;
+        }
+        String lower = title.toLowerCase();
+        return CAFE_NAME_KEYWORDS.stream().anyMatch(lower::contains);
     }
 
     /** 1:N이라 리스트로 반환 - 비어있으면(매핑 없음/카테고리 미지정) facility 쪽도 필터 없이 전체 조회. */

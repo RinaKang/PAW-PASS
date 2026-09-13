@@ -200,6 +200,22 @@ class FacilityServiceTest {
         assertThat(result).extracting(FacilitySummaryResponse::category).containsExactly("동물병원");
     }
 
+    // 2026-09-13: 목록(FacilitySummaryResponse)엔 lat/lng가 있는데 상세엔 없어서 상세 페이지 지도에 핀을
+    // 못 찍던 실제 프론트 리포트로 발견 - PetFacility에 이미 저장된 값을 그대로 실어준다(외부 호출 불필요).
+    @Test
+    void getDetail은_좌표도_함께_반환한다() {
+        init();
+        PetFacility facility = PetFacility.builder()
+                .id("f1").title("시설").address("주소").lat(37.5665).lng(126.9780).issuedDate("2026-01-01")
+                .build();
+        when(petFacilityRepository.findById("f1")).thenReturn(Optional.of(facility));
+
+        var result = facilityService.getDetail("f1");
+
+        assertThat(result.lat()).isEqualTo(37.5665);
+        assertThat(result.lng()).isEqualTo(126.9780);
+    }
+
     private PetFacility facility(String id) {
         return PetFacility.builder()
                 .id(id).title("시설-" + id).address("주소").category3("동물병원").issuedDate("2026-01-01")

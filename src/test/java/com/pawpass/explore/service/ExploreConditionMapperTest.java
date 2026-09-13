@@ -74,6 +74,26 @@ class ExploreConditionMapperTest {
     @Test
     void CAFE는_포함_필터를_쓰므로_제외_필터는_없다() {
         assertThat(ExploreConditionMapper.toExcludedTourCat3("CAFE")).isNull();
+        assertThat(ExploreConditionMapper.shouldExcludeCafeLikeNames("CAFE")).isFalse();
+    }
+
+    // 2026-09-13: cat3 태그가 아예 없는 카페(전국 72건 중 23건, 실측)를 이름 키워드로 추가 필터링.
+    @Test
+    void FOOD는_이름_기반_카페_필터링도_적용한다() {
+        assertThat(ExploreConditionMapper.shouldExcludeCafeLikeNames("FOOD")).isTrue();
+        assertThat(ExploreConditionMapper.shouldExcludeCafeLikeNames("NATURE")).isFalse();
+        assertThat(ExploreConditionMapper.shouldExcludeCafeLikeNames("CULTURE")).isFalse();
+        assertThat(ExploreConditionMapper.shouldExcludeCafeLikeNames("STAY")).isFalse();
+    }
+
+    @Test
+    void 이름에_카페_관련_키워드가_있으면_카페로_인식한다() {
+        assertThat(ExploreConditionMapper.looksLikeCafeByName("누닝 펫푸드카페")).isTrue();
+        assertThat(ExploreConditionMapper.looksLikeCafeByName("맥파이앤타이거 성수티룸")).isTrue();
+        assertThat(ExploreConditionMapper.looksLikeCafeByName("도깨비젤라또")).isTrue();
+        assertThat(ExploreConditionMapper.looksLikeCafeByName("Blue Bottle Coffee")).isTrue();
+        assertThat(ExploreConditionMapper.looksLikeCafeByName("강릉 한우타운")).isFalse();
+        assertThat(ExploreConditionMapper.looksLikeCafeByName(null)).isFalse();
     }
 
     @Test
@@ -106,6 +126,25 @@ class ExploreConditionMapperTest {
         assertThat(ExploreConditionMapper.toTourContentTypeId("STAY")).contains("32");
         assertThat(ExploreConditionMapper.toFacilityCategory3Values("STAY"))
                 .containsExactlyInAnyOrder("펜션", "호텔");
+    }
+
+    // 2026-09-13: TourAPI엔 "동물병원" 개념 자체가 없어서 facility(KCISA)만 있는 카테고리로 추가.
+    @Test
+    void HOSPITAL은_facility_동물병원으로만_매핑되고_tour_조회_자체를_건너뛴다() {
+        assertThat(ExploreConditionMapper.toFacilityCategory3Values("HOSPITAL")).containsExactly("동물병원");
+        assertThat(ExploreConditionMapper.toTourContentTypeId("HOSPITAL")).isEmpty();
+        assertThat(ExploreConditionMapper.isFacilityOnly("HOSPITAL")).isTrue();
+    }
+
+    @Test
+    void facilityOnly가_아닌_카테고리는_전부_false다() {
+        assertThat(ExploreConditionMapper.isFacilityOnly("NATURE")).isFalse();
+        assertThat(ExploreConditionMapper.isFacilityOnly("CAFE")).isFalse();
+        assertThat(ExploreConditionMapper.isFacilityOnly("FOOD")).isFalse();
+        assertThat(ExploreConditionMapper.isFacilityOnly("CULTURE")).isFalse();
+        assertThat(ExploreConditionMapper.isFacilityOnly("STAY")).isFalse();
+        assertThat(ExploreConditionMapper.isFacilityOnly("UNKNOWN")).isFalse();
+        assertThat(ExploreConditionMapper.isFacilityOnly(null)).isFalse();
     }
 
     @Test

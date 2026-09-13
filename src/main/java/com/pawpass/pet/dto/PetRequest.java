@@ -10,7 +10,11 @@ public record PetRequest(
         @NotBlank String breed,
         @Positive Double weight,
         PetSize size,
-        Boolean hasCarrier,
-        Boolean hasLeash
+        Boolean hasCarrier, // 이동장/케이지
+        Boolean hasLeash, // 목줄/하네스
+        Boolean hasMuzzle, // 입마개 (2026-09-13 추가)
+        Boolean hasWasteBags, // 배변봉투
+        Boolean hasStroller, // 유모차/웨건
+        Boolean hasDiaper // 기저귀/매너벨트
 ) {
 }

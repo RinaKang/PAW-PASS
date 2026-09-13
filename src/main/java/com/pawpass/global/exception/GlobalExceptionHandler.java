@@ -11,6 +11,7 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -56,6 +57,22 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ApiResponse<Object>> handleMalformedBody(HttpMessageNotReadableException e) {
         return ResponseEntity.badRequest().body(ApiResponse.error("요청 본문 형식이 올바르지 않습니다."));
+    }
+
+    /**
+     * TourAPI/KCISA/Gemini/구글 Places 등 외부 API 호출 자체가 실패했을 때(비-2xx 응답) - WebClient의
+     * 기본 동작은 이걸 예외로 던지는데, 안 잡아두면 그대로 handleUnexpected()로 떨어져 500이 나간다.
+     * 2026-09-13 실사례로 발견: TourAPI 서비스 키가 일일 요청 한도(data.go.kr 쪽 제약)를 초과해서
+     * detailCommon2가 HTTP 429(LIMITED_NUMBER_OF_SERVICE_REQUESTS_EXCEEDS_ERROR)를 반환했는데, 이게
+     * GET /tours/{contentId} 자체는 물론 PlaceLookupService를 거치는 GET /favorites, /trips까지
+     * 500으로 전파시켰다(PlaceLookupService 쪽은 별도로 예외 처리 범위를 넓혀서 추가 방어함).
+     * 클라이언트 잘못이 아니라 "지금 외부 서비스가 안 됨"이라 503이 맞다.
+     */
+    @ExceptionHandler(WebClientResponseException.class)
+    public ResponseEntity<ApiResponse<Object>> handleExternalApiFailure(WebClientResponseException e) {
+        log.warn("외부 API 호출 실패 - status={}, body={}", e.getStatusCode(), e.getResponseBodyAsString());
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(ApiResponse.error("외부 서비스 호출에 실패했습니다. 잠시 후 다시 시도해주세요."));
     }
 
     @ExceptionHandler(UnsupportedOperationException.class)

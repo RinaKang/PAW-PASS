@@ -56,6 +56,26 @@ class PetServiceTest {
         assertThat(user.getPrimaryPetId()).isEqualTo(10L);
     }
 
+    // 2026-09-13: 반려동물 등록 폼 "동반 시 구비 가능한 용품" 다중선택 확장(입마개/배변봉투/유모차·웨건/기저귀·매너벨트).
+    @Test
+    void 등록시_구비용품_필드가_전부_반영된다() {
+        init();
+        PetRequest request = new PetRequest("초코", "강아지", "말티즈", 3.0, PetSize.SMALL,
+                true, false, true, false, true, false);
+        when(petRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(petRepository.findAllByUserId(1L)).thenReturn(List.of(pet(10L)));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user()));
+
+        PetResponse result = petService.create(1L, request);
+
+        assertThat(result.hasCarrier()).isTrue();
+        assertThat(result.hasLeash()).isFalse();
+        assertThat(result.hasMuzzle()).isTrue();
+        assertThat(result.hasWasteBags()).isFalse();
+        assertThat(result.hasStroller()).isTrue();
+        assertThat(result.hasDiaper()).isFalse();
+    }
+
     @Test
     void 두번째_반려동물은_자동으로_대표가_되지_않는다() {
         init();
@@ -130,7 +150,7 @@ class PetServiceTest {
     }
 
     private PetRequest petRequest() {
-        return new PetRequest("초코", "강아지", "말티즈", 3.0, PetSize.SMALL, true, true);
+        return new PetRequest("초코", "강아지", "말티즈", 3.0, PetSize.SMALL, true, true, false, false, false, false);
     }
 
     private User user() {

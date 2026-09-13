@@ -20,6 +20,15 @@ public record TourDetailCommonItem(
         String firstimage,
         String firstimage2,
         String overview,
+        String mapx,
+        String mapy,
         @JsonProperty("modifiedtime") String modifiedTime
 ) {
+    /** mapx/mapy 없이 쓰는 기존 호출부(테스트) 호환용. */
+    public TourDetailCommonItem(String contentId, String contentTypeId, String title, String addr1, String addr2,
+                                 String tel, String firstimage, String firstimage2, String overview,
+                                 String modifiedTime) {
+        this(contentId, contentTypeId, title, addr1, addr2, tel, firstimage, firstimage2, overview,
+                null, null, modifiedTime);
+    }
 }

@@ -1,6 +1,7 @@
 package com.pawpass.explore.dto;
 
 import com.pawpass.facility.dto.FacilitySummaryResponse;
+import com.pawpass.matching.dto.MatchResponse;
 import com.pawpass.tour.dto.TourSummaryResponse;
 
 import java.nio.charset.StandardCharsets;
@@ -18,7 +19,9 @@ public record ExploreItem(
         Double lat,
         Double lng,
         String dedupKey,
-        String matchStatus
+        String matchStatus,
+        String matchReason,
+        String matchRawText
 ) {
     /**
      * category는 소스별 원본 규격 그대로 통과시킨다(공통 규격으로 변환하지 않음) - tourapi는 관광공사
@@ -29,8 +32,10 @@ public record ExploreItem(
     public static ExploreItem fromTour(TourSummaryResponse tour, String matchStatus) {
         // TourAPI 좌표 표기 관례: mapX=경도(longitude), mapY=위도(latitude)
         // TourAPI 자체 이미지라 구글 Places 저작자 표시 대상이 아님 - imageAttribution은 항상 null.
+        // matchReason/matchRawText는 아직 매칭 전이라 null(기본값 "확인필요"는 실제 판정이 아니라
+        // 근거가 없음) - 나중에 개인화 계산되면 withMatch()가 채운다.
         return new ExploreItem("tourapi", tour.contentId(), tour.title(), tour.addr(), tour.image(), null,
-                tour.category(), tour.mapY(), tour.mapX(), dedupKey(tour.title()), matchStatus);
+                tour.category(), tour.mapY(), tour.mapX(), dedupKey(tour.title()), matchStatus, null, null);
     }
 
     /**
@@ -43,11 +48,19 @@ public record ExploreItem(
     public static ExploreItem fromFacility(FacilitySummaryResponse facility, String matchStatus) {
         return new ExploreItem("kcisa", facility.id(), facility.title(), facility.addr(), facility.image(),
                 facility.imageAttribution(), facility.category(), facility.lat(), facility.lng(),
-                dedupKey(facility.title()), matchStatus);
+                dedupKey(facility.title()), matchStatus, null, null);
     }
 
-    public ExploreItem withMatchStatus(String newMatchStatus) {
-        return new ExploreItem(source, id, title, addr, image, imageAttribution, category, lat, lng, dedupKey, newMatchStatus);
+    /**
+     * 매칭 판정 결과(MatchResponse)를 그대로 실어준다(2026-09-13 추가) - "왜 조건부/불가인지" 근거를
+     * 목록(/explore) 단계에서부터 보여주기 위함(사용자 요청: 매칭 결과 옆에 판정 근거를 명확히 노출해서
+     * 차별화). matchReason은 사람이 읽기 좋은 요약(예: "목줄 착용 필수", "2.0kg 이하만 가능한데 초코는
+     * 초과"), matchRawText는 판정에 쓰인 원문 전체 - 프론트가 카드엔 matchReason만, 상세/툴팁엔
+     * matchRawText까지 보여주는 식으로 선택해서 쓰면 된다.
+     */
+    public ExploreItem withMatch(MatchResponse match) {
+        return new ExploreItem(source, id, title, addr, image, imageAttribution, category, lat, lng, dedupKey,
+                match.status(), match.reason(), match.rawText());
     }
 
     /**

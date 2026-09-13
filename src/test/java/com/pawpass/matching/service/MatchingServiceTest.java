@@ -254,13 +254,13 @@ class MatchingServiceTest {
         return new TourDetailResponse(
                 "123", "제목", "주소", "tel", "hours", java.util.List.of(),
                 new TourDetailResponse.PetCondition(null, null, null, etcAcmpyInfo),
-                "issued");
+                "issued", 1.0, 1.0);
     }
 
     private FacilityDetailResponse facilityDetail(String petRestriction) {
         return new FacilityDetailResponse(
                 "제목", "주소", "tel", "hours",
                 new FacilityDetailResponse.PetCondition(null, petRestriction, null, null, null, null),
-                null);
+                null, null, null);
     }
 }

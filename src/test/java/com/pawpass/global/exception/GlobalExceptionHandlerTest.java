@@ -6,6 +6,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
+
+import java.nio.charset.StandardCharsets;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -37,6 +40,19 @@ class GlobalExceptionHandlerTest {
         ResponseEntity<ApiResponse<Object>> response = handler.handleMalformedBody(e);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody().isSuccess()).isFalse();
+    }
+
+    // 2026-09-13: TourAPI 서비스 키가 일일 요청 한도를 초과해 detailCommon2가 HTTP 429를 반환했는데,
+    // 이걸 안 잡아둬서 GET /tours/{contentId}가 그대로 500으로 새던 실제 사례(live-verified).
+    @Test
+    void 외부_API_호출_실패는_500이_아니라_503으로_처리된다() {
+        WebClientResponseException e = WebClientResponseException.create(
+                429, "Too Many Requests", null, "쿼터 초과".getBytes(StandardCharsets.UTF_8), StandardCharsets.UTF_8);
+
+        ResponseEntity<ApiResponse<Object>> response = handler.handleExternalApiFailure(e);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
         assertThat(response.getBody().isSuccess()).isFalse();
     }
 }

@@ -59,6 +59,23 @@ class TourServiceTest {
         assertThat(result.petCondition().acmpyPsblCpam()).isEqualTo("소형견만 가능");
     }
 
+    // 2026-09-13: 목록(TourSummaryResponse)엔 mapX/mapY가 있는데 상세엔 없어서 상세 페이지 지도에 핀을
+    // 못 찍던 실제 프론트 리포트로 발견 - detailCommon2의 mapx/mapy를 받아서 실어준다.
+    @Test
+    void getDetail_좌표도_함께_반환한다() {
+        TourDetailCommonItem common = new TourDetailCommonItem(
+                "123", "12", "제목", "주소1", null, "tel", "img", null, "overview",
+                "126.9780", "37.5665", "modified");
+        when(tourApiClient.detailCommon("123")).thenReturn(common);
+        when(tourApiClient.detailIntro("123", "12")).thenReturn(null);
+        when(tourApiClient.detailPetTour("123")).thenReturn(null);
+
+        TourDetailResponse result = tourService.getDetail("123");
+
+        assertThat(result.mapX()).isEqualTo(126.9780);
+        assertThat(result.mapY()).isEqualTo(37.5665);
+    }
+
     @Test
     void getDetail_intro나_petTour가_없어도_common만으로_응답한다() {
         TourDetailCommonItem common = new TourDetailCommonItem(

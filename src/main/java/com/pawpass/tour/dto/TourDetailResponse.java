@@ -16,8 +16,15 @@ public record TourDetailResponse(
         String hours,
         List<String> images,
         PetCondition petCondition,
-        String issuedDate
+        String issuedDate,
+        Double mapX,
+        Double mapY
 ) {
+    /**
+     * mapX/mapY(2026-09-13 추가) - TourAPI 좌표 표기 관례: mapX=경도(longitude), mapY=위도(latitude),
+     * TourSummaryResponse(목록)와 동일. 목록엔 있는데 상세엔 없어서 상세 페이지 지도에 핀을 못 찍던
+     * 실제 프론트 리포트로 발견됨 - detailCommon2 응답에 mapx/mapy가 이미 있는데 안 받아쓰고 있었음.
+     */
     public static TourDetailResponse of(TourDetailCommonItem common, TourDetailIntroItem intro,
                                          TourDetailPetTourItem pet, List<TourDetailImageItem> images) {
         return new TourDetailResponse(
@@ -28,7 +35,9 @@ public record TourDetailResponse(
                 intro == null ? null : intro.hours(),
                 images(common.firstimage(), common.firstimage2(), images),
                 PetCondition.from(pet),
-                common.modifiedTime()
+                common.modifiedTime(),
+                parseDouble(common.mapx()),
+                parseDouble(common.mapy())
         );
     }
 
@@ -37,6 +46,17 @@ public record TourDetailResponse(
             return addr1;
         }
         return addr1 + " " + addr2;
+    }
+
+    private static Double parseDouble(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return Double.parseDouble(value);
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     /**

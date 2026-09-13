@@ -14,6 +14,10 @@ public record PetResponse(
         PetSize size,
         boolean hasCarrier,
         boolean hasLeash,
+        boolean hasMuzzle,
+        boolean hasWasteBags,
+        boolean hasStroller,
+        boolean hasDiaper,
         LocalDateTime createdAt,
         boolean isPrimary
 ) {
@@ -26,7 +30,8 @@ public record PetResponse(
     public static PetResponse from(Pet pet, boolean isPrimary) {
         return new PetResponse(
                 pet.getId(), pet.getName(), pet.getSpecies(), pet.getBreed(), pet.getWeight(),
-                pet.getSize(), pet.isHasCarrier(), pet.isHasLeash(), pet.getCreatedAt(), isPrimary
+                pet.getSize(), pet.isHasCarrier(), pet.isHasLeash(), pet.isHasMuzzle(), pet.isHasWasteBags(),
+                pet.isHasStroller(), pet.isHasDiaper(), pet.getCreatedAt(), isPrimary
         );
     }
 }

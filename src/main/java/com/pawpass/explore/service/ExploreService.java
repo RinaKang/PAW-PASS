@@ -90,7 +90,11 @@ public class ExploreService {
      * 명시하지 않은 "기본" 요청은 가능/조건부만 반환한다.
      */
     public List<ExploreItem> explore(Long userId, String regionCode, String category, String matchStatus, Long petId, int page) {
-        List<ExploreItem> tourItems = searchTourItems(regionCode, category, page);
+        // HOSPITAL처럼 TourAPI에 대응 개념이 아예 없는 카테고리는 tour 조회 자체를 건너뛴다(불필요한
+        // TourAPI 호출도 안 나감) - ExploreConditionMapper.CategoryMapping.facilityOnly 참고.
+        List<ExploreItem> tourItems = ExploreConditionMapper.isFacilityOnly(category)
+                ? List.of()
+                : searchTourItems(regionCode, category, page);
         List<ExploreItem> facilityItems = searchFacilityItems(regionCode, category, page);
 
         List<ExploreItem> merged = mergeTourApiFirst(tourItems, facilityItems);
@@ -132,9 +136,13 @@ public class ExploreService {
         // FOOD처럼 서버단 "제외" 필터가 없는 카테고리는, 응답을 받은 뒤 이 cat3와 일치하는 항목(카페로 명시
         // 태그된 것)만 걸러낸다 - TourAPI 자체가 제외 필터를 지원하지 않아서 클라이언트 쪽에서 처리한다.
         String excludedCat3 = ExploreConditionMapper.toExcludedTourCat3(category);
+        // cat3 태그가 아예 없어서 위 필터로 못 거른 카페는 이름 키워드로 한 번 더 거른다(FOOD만 해당,
+        // 2026-09-13 추가 - "최대한 식당만 뜨게" 요청에 대한 보강. ExploreConditionMapper 주석 참고).
+        boolean excludeCafeLikeNames = ExploreConditionMapper.shouldExcludeCafeLikeNames(category);
 
         return tourService.search(lDongRegnCd, lDongSignguCd, contentTypeId, cat1, cat2, cat3, page).stream()
                 .filter(tour -> excludedCat3 == null || !excludedCat3.equals(tour.cat3()))
+                .filter(tour -> !excludeCafeLikeNames || !ExploreConditionMapper.looksLikeCafeByName(tour.title()))
                 .map(tour -> ExploreItem.fromTour(tour, DEFAULT_MATCH_STATUS))
                 .toList();
     }
@@ -196,7 +204,7 @@ public class ExploreService {
             MatchResponse match = "tourapi".equals(item.source())
                     ? matchingService.matchTourForPet(pet, item.id())
                     : matchingService.matchFacilityForPet(pet, item.id());
-            return item.withMatchStatus(match.status());
+            return item.withMatch(match);
         } catch (Exception e) {
             log.warn("항목 매칭 계산 실패 - 확인필요로 대체함: source={}, id={}, error={}",
                     item.source(), item.id(), e.getMessage());

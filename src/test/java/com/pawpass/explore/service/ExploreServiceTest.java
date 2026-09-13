@@ -165,6 +165,23 @@ class ExploreServiceTest {
                 .containsExactly(org.assertj.core.groups.Tuple.tuple("f1", MatchResponse.STATUS_DENIED));
     }
 
+    // 2026-09-13: 매칭 판정 근거(reason/raw_text)를 목록(/explore) 단계에서부터 노출해서 "왜 조건부인지"를
+    // 사용자에게 명확히 보여주기 위한 기능 - 기존엔 matchStatus만 실리고 근거는 버려지고 있었다.
+    @Test
+    void 매칭_판정_근거도_함께_실린다() {
+        TourSummaryResponse tour = new TourSummaryResponse("t1", "제목", "주소", "tel", "img", 1.0, 1.0);
+        when(tourService.search(null, null, null, null, null, null, 1)).thenReturn(List.of(tour));
+        when(facilityService.search(null, null, 1)).thenReturn(List.of());
+        when(matchingService.resolveOptionalPet(1L, 9L)).thenReturn(PET);
+        when(matchingService.matchTourForPet(PET, "t1"))
+                .thenReturn(new MatchResponse(MatchResponse.STATUS_CONDITIONAL, "목줄 착용 필수", "실내 동반 가능, 목줄 착용 필수"));
+
+        List<ExploreItem> result = exploreService.explore(1L, null, null, "조건부", 9L, 1);
+
+        assertThat(result).extracting(ExploreItem::matchReason, ExploreItem::matchRawText)
+                .containsExactly(org.assertj.core.groups.Tuple.tuple("목줄 착용 필수", "실내 동반 가능, 목줄 착용 필수"));
+    }
+
     // 기능 명세서 4.2.1: petId는 있는데 matchStatus를 명시하지 않은 "기본" 요청은 가능/조건부만 노출해야 한다.
     @Test
     void petId만_있고_matchStatus가_없으면_가능_조건부만_기본_노출된다() {
@@ -358,6 +375,33 @@ class ExploreServiceTest {
         // cat3="A05020900"로 명시 태그된 t1만 빠지고, 태그 없는 t2(알려진 잔여 한계 - 걸러낼 수 없음)와
         // 카페가 아닌 태그의 t3, facility 쪽 r1은 그대로 남는다
         assertThat(result).extracting(ExploreItem::id).containsExactlyInAnyOrder("t2", "t3", "r1");
+    }
+
+    // 2026-09-13: cat3 태그가 없어서 위 필터로는 못 거른 카페도, 이름에 힌트가 있으면 한 번 더 걸러낸다.
+    @Test
+    void FOOD_카테고리는_cat3_태그가_없어도_이름에_카페_키워드가_있으면_걸러낸다() {
+        TourSummaryResponse untaggedButNamedCafe = new TourSummaryResponse("t1", "누닝 펫푸드카페", "주소", "tel", "img", 1.0, 1.0, null);
+        TourSummaryResponse realRestaurant = new TourSummaryResponse("t2", "강릉 한우타운", "주소", "tel", "img", 2.0, 2.0, null);
+
+        when(tourService.search(null, null, "39", null, null, null, 1))
+                .thenReturn(List.of(untaggedButNamedCafe, realRestaurant));
+        when(facilityService.search(null, "식당", 1)).thenReturn(List.of());
+
+        List<ExploreItem> result = exploreService.explore(1L, null, "FOOD", null, null, 1);
+
+        assertThat(result).extracting(ExploreItem::id).containsExactly("t2");
+    }
+
+    // 2026-09-13: TourAPI엔 "동물병원" 개념이 없어서 tour 조회 자체를 안 해야 한다(불필요한 호출 방지).
+    @Test
+    void HOSPITAL_카테고리는_tour_조회를_아예_건너뛰고_facility_동물병원만_조회한다() {
+        FacilitySummaryResponse hospital = new FacilitySummaryResponse("h1", "동물병원1", "주소", "tel", 1.0, 1.0, null, null, "동물병원");
+        when(facilityService.search(null, "동물병원", 1)).thenReturn(List.of(hospital));
+
+        List<ExploreItem> result = exploreService.explore(1L, null, "HOSPITAL", null, null, 1);
+
+        assertThat(result).extracting(ExploreItem::id).containsExactly("h1");
+        org.mockito.Mockito.verifyNoInteractions(tourService);
     }
 
     @Test
