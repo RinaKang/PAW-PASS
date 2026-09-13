@@ -9,6 +9,8 @@ import com.pawpass.pet.domain.PetSize;
 import com.pawpass.pet.repository.PetRepository;
 import com.pawpass.tour.dto.TourDetailResponse;
 import com.pawpass.tour.service.TourService;
+import com.pawpass.user.domain.User;
+import com.pawpass.user.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -29,6 +31,8 @@ class MatchingServiceTest {
 
     @Mock
     private PetRepository petRepository;
+    @Mock
+    private UserRepository userRepository;
     @Mock
     private TourService tourService;
     @Mock
@@ -53,6 +57,52 @@ class MatchingServiceTest {
 
         assertThatThrownBy(() -> matchingService.matchTour(1L, "123", 99L))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    // 2026-09-13: petId를 안 넘기면 대표 반려동물(User.primaryPetId)로 대체한다.
+    @Test
+    void petId를_안_넘기면_대표_반려동물로_매칭한다() {
+        User user = userWithPrimaryPet(5L);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(petRepository.findByIdAndUserId(5L, 1L)).thenReturn(Optional.of(OWNED_PET));
+
+        Pet result = matchingService.requirePetForMatch(1L, null);
+
+        assertThat(result).isEqualTo(OWNED_PET);
+    }
+
+    @Test
+    void petId도_대표_반려동물도_없으면_매칭_시_예외() {
+        User user = userWithPrimaryPet(null);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+
+        assertThatThrownBy(() -> matchingService.requirePetForMatch(1L, null))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    // /explore는 매칭용과 달리 예외를 던지지 않고 조용히 null(개인화 없이 진행)로 대체한다.
+    @Test
+    void explore용_조회는_petId도_대표_반려동물도_없으면_예외_없이_null() {
+        User user = userWithPrimaryPet(null);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+
+        Pet result = matchingService.resolveOptionalPet(1L, null);
+
+        assertThat(result).isNull();
+    }
+
+    @Test
+    void explore용_조회는_비로그인이면_대표_반려동물_조회_자체를_시도하지_않는다() {
+        Pet result = matchingService.resolveOptionalPet(null, null);
+
+        assertThat(result).isNull();
+        verify(userRepository, never()).findById(org.mockito.ArgumentMatchers.any());
+    }
+
+    private User userWithPrimaryPet(Long primaryPetId) {
+        User user = User.builder().googleId("g").email("e@e.com").name("사용자").picture(null).build();
+        user.changePrimaryPet(primaryPetId);
+        return user;
     }
 
     @Test

@@ -13,6 +13,9 @@ import org.springframework.web.bind.annotation.*;
  * GET /facilities/{id}/match?pet_id=
  *
  * 응답: { status: 가능|조건부|불가|확인필요, reason, raw_text }
+ *
+ * petId는 이제 선택 사항이다(2026-09-13) - 안 넘기면 대표 반려동물(User.primaryPetId)로 매칭한다.
+ * 대표 반려동물도 없으면 400으로 "먼저 선택해주세요" 안내(MatchingService.requirePetForMatch 참고).
  */
 @RestController
 @RequiredArgsConstructor
@@ -22,13 +25,15 @@ public class MatchController {
 
     @GetMapping("/tours/{contentId}/match")
     public ApiResponse<MatchResponse> matchTour(
-            @AuthenticationPrincipal Long userId, @PathVariable String contentId, @RequestParam Long petId) {
+            @AuthenticationPrincipal Long userId, @PathVariable String contentId,
+            @RequestParam(required = false) Long petId) {
         return ApiResponse.success(matchingService.matchTour(userId, contentId, petId));
     }
 
     @GetMapping("/facilities/{id}/match")
     public ApiResponse<MatchResponse> matchFacility(
-            @AuthenticationPrincipal Long userId, @PathVariable String id, @RequestParam Long petId) {
+            @AuthenticationPrincipal Long userId, @PathVariable String id,
+            @RequestParam(required = false) Long petId) {
         return ApiResponse.success(matchingService.matchFacility(userId, id, petId));
     }
 }

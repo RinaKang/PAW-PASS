@@ -10,6 +10,8 @@ import com.pawpass.pet.domain.PetSize;
 import com.pawpass.pet.repository.PetRepository;
 import com.pawpass.tour.dto.TourDetailResponse;
 import com.pawpass.tour.service.TourService;
+import com.pawpass.user.domain.User;
+import com.pawpass.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -33,17 +35,18 @@ public class MatchingService {
     private static final double CONFIDENCE_THRESHOLD = 0.5;
 
     private final PetRepository petRepository;
+    private final UserRepository userRepository;
     private final TourService tourService;
     private final FacilityService facilityService;
     private final PetConditionAiParser petConditionAiParser;
 
     public MatchResponse matchTour(Long userId, String contentId, Long petId) {
-        Pet pet = requireOwnedPet(userId, petId);
+        Pet pet = requirePetForMatch(userId, petId);
         return matchTourForPet(pet, contentId);
     }
 
     public MatchResponse matchFacility(Long userId, String id, Long petId) {
-        Pet pet = requireOwnedPet(userId, petId);
+        Pet pet = requirePetForMatch(userId, petId);
         return matchFacilityForPet(pet, id);
     }
 
@@ -76,6 +79,42 @@ public class MatchingService {
     public Pet requireOwnedPet(Long userId, Long petId) {
         return petRepository.findByIdAndUserId(petId, userId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 반려동물입니다: " + petId));
+    }
+
+    /**
+     * /tours,/facilities의 {id}/match용 - petId를 안 넘기면 대표 반려동물(User.primaryPetId)로 대체한다.
+     * 대표 반려동물도 없으면(반려동물이 아예 없거나, 2마리 이상인데 아직 하나를 안 골랐거나) 명확한 에러로
+     * "먼저 선택해주세요"를 안내한다 - 매칭은 특정 펫 없이는 의미가 없는 기능이라 조용히 넘어가지 않는다.
+     */
+    public Pet requirePetForMatch(Long userId, Long petId) {
+        if (petId != null) {
+            return requireOwnedPet(userId, petId);
+        }
+        Long primaryPetId = findPrimaryPetId(userId);
+        if (primaryPetId == null) {
+            throw new IllegalArgumentException("매칭할 반려동물을 먼저 선택해주세요.");
+        }
+        return requireOwnedPet(userId, primaryPetId);
+    }
+
+    /**
+     * /explore용 - petId도 대표 반려동물도 없으면 조용히 null을 반환해 개인화 없이 진행하게 한다
+     * (목록 조회는 매칭 없이도 의미가 있는 기능이라 requirePetForMatch처럼 에러를 던지지 않는다).
+     * userId가 null이면(비로그인 브라우징) 바로 null - 대표 반려동물 조회 자체를 시도하지 않는다.
+     */
+    public Pet resolveOptionalPet(Long userId, Long petId) {
+        if (userId == null) {
+            return null;
+        }
+        if (petId != null) {
+            return requireOwnedPet(userId, petId);
+        }
+        Long primaryPetId = findPrimaryPetId(userId);
+        return primaryPetId == null ? null : requireOwnedPet(userId, primaryPetId);
+    }
+
+    private Long findPrimaryPetId(Long userId) {
+        return userRepository.findById(userId).map(User::getPrimaryPetId).orElse(null);
     }
 
     private MatchResponse judge(String rawText, Pet pet) {

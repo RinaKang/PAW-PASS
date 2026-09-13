@@ -4,6 +4,7 @@ import com.pawpass.favorite.repository.FavoriteRepository;
 import com.pawpass.pet.repository.PetRepository;
 import com.pawpass.trip.repository.TripRepository;
 import com.pawpass.user.domain.User;
+import com.pawpass.user.dto.PrimaryPetResponse;
 import com.pawpass.user.dto.TravelConditionRequest;
 import com.pawpass.user.dto.TravelConditionResponse;
 import com.pawpass.user.repository.UserRepository;
@@ -27,6 +28,17 @@ public class UserService {
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다: " + userId));
         user.updateTravelCondition(request.regionCode(), request.travelCategory());
         return TravelConditionResponse.from(user);
+    }
+
+    /** 반려동물이 2마리 이상인 사용자가 대표 반려동물을 명시적으로 고르거나 바꿀 때 쓴다. */
+    @Transactional
+    public PrimaryPetResponse updatePrimaryPet(Long userId, Long petId) {
+        petRepository.findByIdAndUserId(petId, userId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 반려동물입니다: " + petId));
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다: " + userId));
+        user.changePrimaryPet(petId);
+        return new PrimaryPetResponse(petId);
     }
 
     @Transactional

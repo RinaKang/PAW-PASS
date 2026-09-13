@@ -45,6 +45,12 @@ public class User {
     @Column(name = "travel_category", length = 30)
     private String travelCategory;
 
+    // 대표 반려동물(2026-09-13 추가) - 반려동물이 1마리뿐이면 자동으로 이 값이 채워지고(PetService.create),
+    // 2마리 이상이면 사용자가 명시적으로 골라야 한다(PUT /users/me/primary-pet). /explore·매칭에서 petId를
+    // 안 넘기면 이 값을 기본으로 쓴다 - MatchingService.resolveOptionalPet/requirePetForMatch 참고.
+    @Column(name = "primary_pet_id")
+    private Long primaryPetId;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -73,5 +79,10 @@ public class User {
         this.regionCode = regionCode;
         this.travelCategory = travelCategory;
         this.updatedAt = LocalDateTime.now(); // @PreUpdate는 flush 시점에만 반영되므로, 같은 트랜잭션 내 즉시 응답용으로 직접 설정
+    }
+
+    public void changePrimaryPet(Long petId) {
+        this.primaryPetId = petId;
+        this.updatedAt = LocalDateTime.now();
     }
 }

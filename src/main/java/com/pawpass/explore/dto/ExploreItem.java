@@ -14,16 +14,23 @@ public record ExploreItem(
         String addr,
         String image,
         String imageAttribution,
+        String category,
         Double lat,
         Double lng,
         String dedupKey,
         String matchStatus
 ) {
+    /**
+     * category는 소스별 원본 규격 그대로 통과시킨다(공통 규격으로 변환하지 않음) - tourapi는 관광공사
+     * contentTypeId(12=관광지 등), kcisa는 category3(예: "동물병원", "카페") 값. 프론트가 카테고리별
+     * 플레이스홀더 이미지를 고르는 등의 용도로 요청(2026-09-13) - "동물병원"처럼 /explore의 공통
+     * 카테고리(NATURE/CAFE/FOOD/CULTURE/STAY)에 아예 없는 값도 있어서, 공통 규격 대신 원본 그대로 준다.
+     */
     public static ExploreItem fromTour(TourSummaryResponse tour, String matchStatus) {
         // TourAPI 좌표 표기 관례: mapX=경도(longitude), mapY=위도(latitude)
         // TourAPI 자체 이미지라 구글 Places 저작자 표시 대상이 아님 - imageAttribution은 항상 null.
         return new ExploreItem("tourapi", tour.contentId(), tour.title(), tour.addr(), tour.image(), null,
-                tour.mapY(), tour.mapX(), dedupKey(tour.title()), matchStatus);
+                tour.category(), tour.mapY(), tour.mapX(), dedupKey(tour.title()), matchStatus);
     }
 
     /**
@@ -35,11 +42,12 @@ public record ExploreItem(
      */
     public static ExploreItem fromFacility(FacilitySummaryResponse facility, String matchStatus) {
         return new ExploreItem("kcisa", facility.id(), facility.title(), facility.addr(), facility.image(),
-                facility.imageAttribution(), facility.lat(), facility.lng(), dedupKey(facility.title()), matchStatus);
+                facility.imageAttribution(), facility.category(), facility.lat(), facility.lng(),
+                dedupKey(facility.title()), matchStatus);
     }
 
     public ExploreItem withMatchStatus(String newMatchStatus) {
-        return new ExploreItem(source, id, title, addr, image, imageAttribution, lat, lng, dedupKey, newMatchStatus);
+        return new ExploreItem(source, id, title, addr, image, imageAttribution, category, lat, lng, dedupKey, newMatchStatus);
     }
 
     /**

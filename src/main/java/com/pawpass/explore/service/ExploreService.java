@@ -82,10 +82,12 @@ public class ExploreService {
     }
 
     /**
-     * petId가 없으면(반려동물을 아직 등록 안 한 사용자 등) 개인화 판정 없이 전부 "확인필요"로 내려가고,
-     * matchStatus 기본 필터는 적용하지 않는다(적용하면 전부 걸러져서 빈 목록만 나옴 - 의미 없음).
-     * petId가 있으면 항목마다 실제 매칭(TourAPI 실시간 조회 + 규칙/AI 판정)을 돌려서 진짜 match_status를
-     * 채우고, matchStatus를 명시하지 않은 "기본" 요청은 가능/조건부만 반환한다
+     * petId를 안 넘기면 대표 반려동물(User.primaryPetId)로 대체한다(2026-09-13 추가) - 반려동물이 1마리뿐인
+     * 사용자는 매번 petId를 명시하지 않아도 자동으로 개인화된다. 대표 반려동물도 없으면(반려동물 미등록,
+     * 또는 2마리 이상인데 아직 하나를 안 골랐거나) 개인화 판정 없이 전부 "확인필요"로 내려가고, matchStatus
+     * 기본 필터는 적용하지 않는다(적용하면 전부 걸러져서 빈 목록만 나옴 - 의미 없음). 개인화되면 항목마다
+     * 실제 매칭(TourAPI 실시간 조회 + 규칙/AI 판정)을 돌려서 진짜 match_status를 채우고, matchStatus를
+     * 명시하지 않은 "기본" 요청은 가능/조건부만 반환한다.
      */
     public List<ExploreItem> explore(Long userId, String regionCode, String category, String matchStatus, Long petId, int page) {
         List<ExploreItem> tourItems = searchTourItems(regionCode, category, page);
@@ -93,9 +95,9 @@ public class ExploreService {
 
         List<ExploreItem> merged = mergeTourApiFirst(tourItems, facilityItems);
 
-        boolean personalized = petId != null;
+        Pet pet = matchingService.resolveOptionalPet(userId, petId);
+        boolean personalized = pet != null;
         if (personalized) {
-            Pet pet = matchingService.requireOwnedPet(userId, petId);
             merged = computeMatchStatuses(merged, pet);
         }
 

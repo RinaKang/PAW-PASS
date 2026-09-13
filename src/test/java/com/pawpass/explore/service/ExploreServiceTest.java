@@ -61,6 +61,25 @@ class ExploreServiceTest {
                 );
     }
 
+    // 2026-09-13: 프론트가 카테고리별 플레이스홀더 이미지를 고를 수 있게 category 필드 추가 - 소스별
+    // 원본 규격 그대로(tourapi=contentTypeId, kcisa=category3) 통과시킨다(공통 규격으로 변환 안 함).
+    @Test
+    void category는_소스별_원본_규격_그대로_통과된다() {
+        TourSummaryResponse tour = new TourSummaryResponse("t1", "제목", "주소", "tel", "img", 1.0, 1.0, "A05020900", "39");
+        FacilitySummaryResponse facility = new FacilitySummaryResponse("f1", "다른곳", "주소2", "tel", 90.0, 90.0, null, null, "동물병원");
+
+        when(tourService.search(null, null, null, null, null, null, 1)).thenReturn(List.of(tour));
+        when(facilityService.search(null, null, 1)).thenReturn(List.of(facility));
+
+        List<ExploreItem> result = exploreService.explore(1L, null, null, null, null, 1);
+
+        assertThat(result).extracting(ExploreItem::id, ExploreItem::category)
+                .containsExactlyInAnyOrder(
+                        org.assertj.core.groups.Tuple.tuple("t1", "39"),
+                        org.assertj.core.groups.Tuple.tuple("f1", "동물병원")
+                );
+    }
+
     @Test
     void 좌표가_50m_이내면_제목이_달라도_같은_장소로_보고_tourapi가_우선한다() {
         // 서울시청 근처 좌표, 두 번째 좌표는 약 30m 정도만 떨어져 있음
@@ -134,7 +153,7 @@ class ExploreServiceTest {
 
         when(tourService.search(null, null, null, null, null, null, 1)).thenReturn(List.of(tour));
         when(facilityService.search(null, null, 1)).thenReturn(List.of(facility));
-        when(matchingService.requireOwnedPet(1L, 9L)).thenReturn(PET);
+        when(matchingService.resolveOptionalPet(1L, 9L)).thenReturn(PET);
         when(matchingService.matchTourForPet(PET, "t1"))
                 .thenReturn(new MatchResponse(MatchResponse.STATUS_ALLOWED, "가능합니다", "raw"));
         when(matchingService.matchFacilityForPet(PET, "f1"))
@@ -156,7 +175,7 @@ class ExploreServiceTest {
 
         when(tourService.search(null, null, null, null, null, null, 1)).thenReturn(List.of(allowed, conditional, denied, unknown));
         when(facilityService.search(null, null, 1)).thenReturn(List.of());
-        when(matchingService.requireOwnedPet(1L, 9L)).thenReturn(PET);
+        when(matchingService.resolveOptionalPet(1L, 9L)).thenReturn(PET);
         when(matchingService.matchTourForPet(PET, "t1"))
                 .thenReturn(new MatchResponse(MatchResponse.STATUS_ALLOWED, "", "raw"));
         when(matchingService.matchTourForPet(PET, "t2"))
@@ -193,7 +212,7 @@ class ExploreServiceTest {
 
         when(tourService.search(null, null, null, null, null, null, 1)).thenReturn(List.of(tourOk, tourFails));
         when(facilityService.search(null, null, 1)).thenReturn(List.of());
-        when(matchingService.requireOwnedPet(1L, 9L)).thenReturn(PET);
+        when(matchingService.resolveOptionalPet(1L, 9L)).thenReturn(PET);
         when(matchingService.matchTourForPet(PET, "t1"))
                 .thenReturn(new MatchResponse(MatchResponse.STATUS_ALLOWED, "가능합니다", "raw"));
         when(matchingService.matchTourForPet(PET, "t2"))
@@ -222,7 +241,7 @@ class ExploreServiceTest {
 
         when(tourService.search(null, null, null, null, null, null, 1)).thenReturn(tours);
         when(facilityService.search(null, null, 1)).thenReturn(List.of(facility));
-        when(matchingService.requireOwnedPet(1L, 9L)).thenReturn(PET);
+        when(matchingService.resolveOptionalPet(1L, 9L)).thenReturn(PET);
         when(matchingService.matchTourForPet(eq(PET), anyString()))
                 .thenReturn(new MatchResponse(MatchResponse.STATUS_ALLOWED, "", "raw"));
         when(matchingService.matchFacilityForPet(PET, "f1"))

@@ -188,9 +188,21 @@ class FacilityServiceTest {
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
+    // 2026-09-13: 프론트가 카테고리별 플레이스홀더 이미지를 고를 수 있게 category(=category3) 필드 추가.
+    @Test
+    void category는_category3_값을_그대로_실어준다() {
+        init();
+        PetFacility facility = facility("f1"); // category3="동물병원"
+        stubSearch(List.of(facility));
+
+        List<FacilitySummaryResponse> result = facilityService.search(null, null, 1);
+
+        assertThat(result).extracting(FacilitySummaryResponse::category).containsExactly("동물병원");
+    }
+
     private PetFacility facility(String id) {
         return PetFacility.builder()
-                .id(id).title("시설-" + id).address("주소").issuedDate("2026-01-01")
+                .id(id).title("시설-" + id).address("주소").category3("동물병원").issuedDate("2026-01-01")
                 .build();
     }
 }
