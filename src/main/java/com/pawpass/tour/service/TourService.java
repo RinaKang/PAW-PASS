@@ -62,6 +62,22 @@ public class TourService {
                 .toList();
     }
 
+    /**
+     * /explore의 keyword 검색(동선 화면 장소 검색 등)용 - regionCode/category 기반 search()와 달리
+     * 지역 구분 없이 전국을 대상으로 이름 검색한다(TourApiClient.searchKeyword 참고).
+     */
+    public List<TourSummaryResponse> searchByKeyword(String keyword, int page) {
+        TourAreaBasedListResponse response = tourApiClient.searchKeyword(PAGE_SIZE, page, ARRANGE_MODIFIED_DESC, keyword);
+
+        var items = response.response().body().items();
+        if (items == null || items.item() == null) {
+            return Collections.emptyList();
+        }
+        return items.item().stream()
+                .map(TourSummaryResponse::from)
+                .toList();
+    }
+
     public TourDetailResponse getDetail(String contentId) {
         TourDetailCommonItem common = tourApiClient.detailCommon(contentId);
         if (common == null) {

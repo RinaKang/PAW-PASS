@@ -6,12 +6,16 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -73,6 +77,48 @@ public class GlobalExceptionHandler {
         log.warn("외부 API 호출 실패 - status={}, body={}", e.getStatusCode(), e.getResponseBodyAsString());
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                 .body(ApiResponse.error("외부 서비스 호출에 실패했습니다. 잠시 후 다시 시도해주세요."));
+    }
+
+    /**
+     * spring.servlet.multipart.max-file-size(5MB, 2026-09-15 프로필 이미지 업로드 추가 시 설정)를
+     * 넘는 파일을 업로드했을 때 - ProfileImageStorage.validate()가 직접 잡는 크기 초과는
+     * IllegalArgumentException으로 잡히지만, 서블릿 컨테이너 단에서 요청을 파싱하다가 먼저 걸리면
+     * 컨트롤러까지 오지도 못하고 이 예외가 던져진다. 안 잡아두면 다른 예외들처럼 500으로 떨어진다.
+     */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiResponse<Object>> handleUploadTooLarge(MaxUploadSizeExceededException e) {
+        return ResponseEntity.badRequest().body(ApiResponse.error("파일 용량이 너무 큽니다."));
+    }
+
+    /**
+     * POST /users/me/profile-image(consumes=multipart/form-data)를 그냥 JSON이나 빈 본문으로 호출했을 때
+     * - 2026-09-15, 실제로 라이브 테스트하다가 500으로 떨어지는 걸 발견해서 추가(다른 누락된 예외 핸들러들과
+     * 같은 유형의 문제 - Content-Type이 안 맞는 것도 클라이언트 잘못이라 400이 맞다).
+     */
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<ApiResponse<Object>> handleUnsupportedMediaType(HttpMediaTypeNotSupportedException e) {
+        return ResponseEntity.badRequest().body(ApiResponse.error("이 요청 형식은 지원하지 않습니다."));
+    }
+
+    /**
+     * multipart 요청인데 필수 파트(예: profile-image 업로드의 "image")가 아예 빠졌을 때 - 위와 같은 라이브
+     * 테스트에서 함께 발견됨. MissingServletRequestParameterException(쿼리 파라미터용)과 별개 예외 타입이라
+     * 따로 잡아야 한다.
+     */
+    @ExceptionHandler(MissingServletRequestPartException.class)
+    public ResponseEntity<ApiResponse<Object>> handleMissingPart(MissingServletRequestPartException e) {
+        return ResponseEntity.badRequest().body(ApiResponse.error(e.getRequestPartName() + " 파트가 필요합니다."));
+    }
+
+    /**
+     * 존재하지 않는 정적 리소스 요청(예: /uploads/profile-images/{없는 파일명}) - 2026-09-15 프로필 이미지
+     * 업로드 기능 추가하면서 /uploads/** 정적 서빙을 처음 붙였는데, 라이브 테스트 중 없는 파일을 요청하니
+     * 500이 나가는 걸 발견함(Spring 6.1+는 이걸 404 HTML 에러 페이지가 아니라 예외로 던짐 - 안 잡아두면
+     * 다른 누락 예외들처럼 그대로 500으로 떨어진다). 파일이 없는 것뿐이라 404가 맞다.
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ApiResponse<Object>> handleNoResourceFound(NoResourceFoundException e) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.error("요청한 리소스를 찾을 수 없습니다."));
     }
 
     @ExceptionHandler(UnsupportedOperationException.class)

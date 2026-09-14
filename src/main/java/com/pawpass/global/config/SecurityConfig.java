@@ -46,7 +46,10 @@ public class SecurityConfig {
             // /facilities/{id}/image(2026-09-12 추가)도 사진 자체는 개인화 정보가 아니라 같은 원칙으로
             // 공개 - "/match"까지 같이 풀리지 않게 "/image" 한 단계만 정확히 매칭한다.
             "/facilities/*/image",
-            "/explore"
+            "/explore",
+            // 업로드된 프로필 이미지(2026-09-15 추가) - 브라우저 <img> 태그는 Authorization 헤더를 안 붙이므로
+            // 다른 사용자 화면에서도 그냥 로드되려면 공개여야 한다(/facilities/*/image와 같은 원칙).
+            "/uploads/**"
     };
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;

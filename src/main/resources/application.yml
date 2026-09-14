@@ -20,6 +20,23 @@ spring:
   jackson:
     property-naming-strategy: SNAKE_CASE
 
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 5MB
+
+# 프로필 이미지 등 사용자 업로드 파일을 저장할 로컬 디스크 경로(2026-09-15 추가) - 서버가 재배포/이전되면
+# 이 경로에 쌓인 파일도 같이 사라지므로, 나중에 배포 환경이 바뀌면(예: 컨테이너 재시작마다 초기화되는 환경)
+# 클라우드 스토리지로 옮기는 걸 재검토해야 함(사용자와 이미 논의: 지금은 로컬 디스크로 결정, 2026-09-15).
+file:
+  upload-dir: ${FILE_UPLOAD_DIR:uploads}
+
+# 업로드된 파일의 공개 URL을 만들 때 쓰는 이 서버 자신의 base URL. 요청(request)에서 유추하지 않고
+# 명시적으로 고정하는 이유: 리버스 프록시 뒤에 있으면 X-Forwarded-* 헤더 설정을 안 믿을 수 있어서
+# 이렇게 명시하는 쪽이 더 안전함.
+app:
+  base-url: ${APP_BASE_URL:http://localhost:8080}
+
 # 외부 API 설정 - 절대 여기에 실제 키 값을 넣지 말 것!
 external-api:
   tour-api:
@@ -39,6 +56,13 @@ external-api:
     # 실시간으로 다시 받아야 함 - google_place_id만 배치 동기화 시점에 pet_facilities에 저장해서 재사용.
     base-url: https://places.googleapis.com
     api-key: ${GOOGLE_PLACES_API_KEY:}
+  kakao-mobility:
+    # 동선 추천(POST /route/suggest) 고도화용 - 직선거리(하버사인) 대신 실제 도로 기준 거리/시간(2026-09-15
+    # 추가). 이 키는 기본 카카오 API 키 발급과 달리 Directions API 별도 "사용 권한 신청"이 필요하다
+    # (2026-09-15 기준 사용자는 아직 미신청) - 키가 비어있거나 호출이 실패하면 RouteService가 기존
+    # 직선거리 계산으로 조용히 폴백한다(route/service/RouteService 참고), 절대 500을 내지 않는다.
+    base-url: https://apis-navi.kakaomobility.com
+    service-key: ${KAKAO_MOBILITY_API_KEY:}
 
 jwt:
   secret: ${JWT_SECRET:change-this-in-production-please-use-env-variable}

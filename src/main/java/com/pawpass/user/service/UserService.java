@@ -7,10 +7,12 @@ import com.pawpass.user.domain.User;
 import com.pawpass.user.dto.PrimaryPetResponse;
 import com.pawpass.user.dto.TravelConditionRequest;
 import com.pawpass.user.dto.TravelConditionResponse;
+import com.pawpass.user.dto.UserResponse;
 import com.pawpass.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 @Service
 @RequiredArgsConstructor
@@ -21,6 +23,7 @@ public class UserService {
     private final PetRepository petRepository;
     private final TripRepository tripRepository;
     private final FavoriteRepository favoriteRepository;
+    private final ProfileImageStorage profileImageStorage;
 
     @Transactional
     public TravelConditionResponse updateTravelCondition(Long userId, TravelConditionRequest request) {
@@ -39,6 +42,22 @@ public class UserService {
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다: " + userId));
         user.changePrimaryPet(petId);
         return new PrimaryPetResponse(petId);
+    }
+
+    /**
+     * 기존 picture는 구글 로그인 시점에만 채워지던 필드(read-only)였는데, 여기서부턴 사용자가 직접 올린
+     * 이미지로 덮어쓸 수 있다(2026-09-15 추가). 이전 이미지가 우리가 저장한 파일이면(구글 사진 URL이 아니라)
+     * 교체 후 지운다 - 안 지우면 재업로드할 때마다 디스크에 계속 쌓인다.
+     */
+    @Transactional
+    public UserResponse updateProfileImage(Long userId, MultipartFile image) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다: " + userId));
+        String oldPicture = user.getPicture();
+        String newPicture = profileImageStorage.store(image, userId);
+        user.updatePicture(newPicture);
+        profileImageStorage.deleteIfManaged(oldPicture);
+        return UserResponse.from(user);
     }
 
     @Transactional

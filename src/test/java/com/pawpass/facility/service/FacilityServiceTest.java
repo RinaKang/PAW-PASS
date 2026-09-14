@@ -216,6 +216,21 @@ class FacilityServiceTest {
         assertThat(result.lng()).isEqualTo(126.9780);
     }
 
+    // 2026-09-14: 동선 화면 장소 검색(keyword) 추가 - region/category 조건 없이 이름/주소로 찾는
+    // searchByKeyword() 경로. 이미지 예산 로직(상한 10개)은 search()와 완전히 같은 코드를 타므로
+    // 여기선 조회 조건 위임과 매핑만 확인한다.
+    @Test
+    void searchByKeyword는_repository에_키워드_그대로_위임한다() {
+        init();
+        PetFacility facility = facility("f1");
+        when(petFacilityRepository.searchByKeyword(org.mockito.ArgumentMatchers.eq("행복카페"), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(List.of(facility));
+
+        List<FacilitySummaryResponse> result = facilityService.searchByKeyword("행복카페", 1);
+
+        assertThat(result).extracting(FacilitySummaryResponse::id).containsExactly("f1");
+    }
+
     private PetFacility facility(String id) {
         return PetFacility.builder()
                 .id(id).title("시설-" + id).address("주소").category3("동물병원").issuedDate("2026-01-01")

@@ -2,10 +2,15 @@ package com.pawpass.tour.service;
 
 import com.pawpass.tour.client.TourApiClient;
 import com.pawpass.tour.dto.TourDetailResponse;
+import com.pawpass.tour.dto.TourSummaryResponse;
+import com.pawpass.tour.dto.external.TourAreaBasedListResponse;
+import com.pawpass.tour.dto.external.TourAreaItem;
+import com.pawpass.tour.dto.external.TourAreaListBody;
 import com.pawpass.tour.dto.external.TourDetailCommonItem;
 import com.pawpass.tour.dto.external.TourDetailImageItem;
 import com.pawpass.tour.dto.external.TourDetailIntroItem;
 import com.pawpass.tour.dto.external.TourDetailPetTourItem;
+import com.pawpass.tour.dto.external.TourResponseHeader;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -130,6 +135,40 @@ class TourServiceTest {
         when(tourApiClient.detailCommon("999")).thenReturn(null);
 
         assertThat(tourService.getSummary("999")).isNull();
+    }
+
+    // 2026-09-14: 동선 화면 장소 검색(keyword) 추가 - areaBasedList2(지역 기반)와 별개로
+    // searchKeyword2(전국 이름 검색)를 호출하는 경로. 응답 파싱 자체는 search()와 동일한 구조라
+    // 별도 매핑 로직 없이 그대로 재사용됨을 확인한다.
+    @Test
+    void searchByKeyword_검색결과를_TourSummaryResponse로_변환한다() {
+        TourAreaItem item = new TourAreaItem(
+                "서울시 강남구", null, "123", "12", "20260101",
+                "img", null, "1", "127.0", "37.5", "6",
+                "20260101", "02-1234-5678", "행복카페", "12345",
+                null, null, null, null, null, null);
+        TourAreaBasedListResponse response = new TourAreaBasedListResponse(
+                new TourAreaBasedListResponse.Response(
+                        new TourResponseHeader("0000", "OK"),
+                        new TourAreaListBody(new TourAreaListBody.Items(List.of(item)), 20, 1, 1)));
+        when(tourApiClient.searchKeyword(20, 1, "C", "행복카페")).thenReturn(response);
+
+        List<TourSummaryResponse> result = tourService.searchByKeyword("행복카페", 1);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).contentId()).isEqualTo("123");
+        assertThat(result.get(0).title()).isEqualTo("행복카페");
+    }
+
+    @Test
+    void searchByKeyword_결과가_없으면_빈_리스트() {
+        TourAreaBasedListResponse response = new TourAreaBasedListResponse(
+                new TourAreaBasedListResponse.Response(
+                        new TourResponseHeader("0000", "OK"),
+                        new TourAreaListBody(new TourAreaListBody.Items(List.of()), 20, 1, 0)));
+        when(tourApiClient.searchKeyword(20, 1, "C", "존재하지않는곳")).thenReturn(response);
+
+        assertThat(tourService.searchByKeyword("존재하지않는곳", 1)).isEmpty();
     }
 
     @Test

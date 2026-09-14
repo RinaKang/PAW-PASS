@@ -88,14 +88,31 @@ public class ExploreService {
      * 기본 필터는 적용하지 않는다(적용하면 전부 걸러져서 빈 목록만 나옴 - 의미 없음). 개인화되면 항목마다
      * 실제 매칭(TourAPI 실시간 조회 + 규칙/AI 판정)을 돌려서 진짜 match_status를 채우고, matchStatus를
      * 명시하지 않은 "기본" 요청은 가능/조건부만 반환한다.
+     *
+     * keyword가 있으면(2026-09-14 추가, 동선 화면 장소 검색용) regionCode/category는 무시하고 이름/주소
+     * 검색으로 완전히 갈아탄다 - 사용자가 특정 장소를 찾는 중이라 "가능/조건부만" 기본 필터를 적용하면
+     * 원하는 장소가 안 보여서 오히려 못 찾는 역효과가 나므로, keyword 모드에서는 개인화 매칭은 그대로
+     * 계산하되(정보 제공용) DEFAULT_VISIBLE_STATUSES 필터는 적용하지 않는다. matchStatus를 명시하면
+     * (keyword와 함께 와도) 그 필터는 그대로 존중한다.
      */
     public List<ExploreItem> explore(Long userId, String regionCode, String category, String matchStatus, Long petId, int page) {
-        // HOSPITAL처럼 TourAPI에 대응 개념이 아예 없는 카테고리는 tour 조회 자체를 건너뛴다(불필요한
-        // TourAPI 호출도 안 나감) - ExploreConditionMapper.CategoryMapping.facilityOnly 참고.
-        List<ExploreItem> tourItems = ExploreConditionMapper.isFacilityOnly(category)
-                ? List.of()
-                : searchTourItems(regionCode, category, page);
-        List<ExploreItem> facilityItems = searchFacilityItems(regionCode, category, page);
+        return explore(userId, regionCode, category, matchStatus, petId, page, null);
+    }
+
+    public List<ExploreItem> explore(Long userId, String regionCode, String category, String matchStatus, Long petId, int page, String keyword) {
+        boolean keywordMode = keyword != null && !keyword.isBlank();
+
+        List<ExploreItem> tourItems;
+        List<ExploreItem> facilityItems;
+        if (keywordMode) {
+            tourItems = searchTourItemsByKeyword(keyword, page);
+            facilityItems = searchFacilityItemsByKeyword(keyword, page);
+        } else {
+            // HOSPITAL처럼 TourAPI에 대응 개념이 아예 없는 카테고리는 tour 조회 자체를 건너뛴다(불필요한
+            // TourAPI 호출도 안 나감) - ExploreConditionMapper.CategoryMapping.facilityOnly 참고.
+            tourItems = ExploreConditionMapper.isFacilityOnly(category) ? List.of() : searchTourItems(regionCode, category, page);
+            facilityItems = searchFacilityItems(regionCode, category, page);
+        }
 
         List<ExploreItem> merged = mergeTourApiFirst(tourItems, facilityItems);
 
@@ -110,12 +127,24 @@ public class ExploreService {
                     .filter(item -> matchStatus.equals(item.matchStatus()))
                     .toList();
         }
-        if (personalized) {
+        if (personalized && !keywordMode) {
             return merged.stream()
                     .filter(item -> DEFAULT_VISIBLE_STATUSES.contains(item.matchStatus()))
                     .toList();
         }
         return merged;
+    }
+
+    private List<ExploreItem> searchTourItemsByKeyword(String keyword, int page) {
+        return tourService.searchByKeyword(keyword, page).stream()
+                .map(tour -> ExploreItem.fromTour(tour, DEFAULT_MATCH_STATUS))
+                .toList();
+    }
+
+    private List<ExploreItem> searchFacilityItemsByKeyword(String keyword, int page) {
+        return facilityService.searchByKeyword(keyword, page).stream()
+                .map(facility -> ExploreItem.fromFacility(facility, DEFAULT_MATCH_STATUS))
+                .toList();
     }
 
     /**

@@ -415,6 +415,52 @@ class ExploreServiceTest {
         verify(facilityService).search(null, null, 1);
     }
 
+    // ===== keyword 검색 (2026-09-14 추가, 동선 화면 장소 검색용) =====
+
+    @Test
+    void keyword가_있으면_regionCode_category는_무시하고_키워드_검색으로_바뀐다() {
+        TourSummaryResponse tour = new TourSummaryResponse("t1", "행복카페", "주소", "tel", "img", 1.0, 1.0);
+        when(tourService.searchByKeyword("행복", 1)).thenReturn(List.of(tour));
+        when(facilityService.searchByKeyword("행복", 1)).thenReturn(List.of());
+
+        List<ExploreItem> result = exploreService.explore(1L, "서울", "CAFE", null, null, 1, "행복");
+
+        assertThat(result).extracting(ExploreItem::id).containsExactly("t1");
+        verify(tourService, never()).search(anyString(), anyString(), anyString(), anyString(), anyString(), anyString(), org.mockito.ArgumentMatchers.anyInt());
+        verify(facilityService, never()).search(anyString(), anyString(), org.mockito.ArgumentMatchers.anyInt());
+    }
+
+    // 사용자가 특정 장소를 찾는 중인데 가능/조건부만 보여주는 기본 필터에 걸려 결과가 사라지면
+    // 오히려 못 찾게 되므로, keyword 모드에서는 개인화가 돼도 기본 필터를 적용하지 않는다.
+    @Test
+    void keyword_모드는_개인화돼도_가능_조건부_기본_필터를_적용하지_않는다() {
+        TourSummaryResponse tour = new TourSummaryResponse("t1", "찾는곳", "주소", "tel", "img", 1.0, 1.0);
+        when(tourService.searchByKeyword("찾는곳", 1)).thenReturn(List.of(tour));
+        when(facilityService.searchByKeyword("찾는곳", 1)).thenReturn(List.of());
+        when(matchingService.resolveOptionalPet(1L, 9L)).thenReturn(PET);
+        when(matchingService.matchTourForPet(PET, "t1"))
+                .thenReturn(new MatchResponse(MatchResponse.STATUS_DENIED, "불가합니다", "raw"));
+
+        List<ExploreItem> result = exploreService.explore(1L, null, null, null, 9L, 1, "찾는곳");
+
+        assertThat(result).extracting(ExploreItem::id, ExploreItem::matchStatus)
+                .containsExactly(org.assertj.core.groups.Tuple.tuple("t1", MatchResponse.STATUS_DENIED));
+    }
+
+    @Test
+    void keyword와_matchStatus를_함께_넘기면_matchStatus_필터는_그대로_적용된다() {
+        TourSummaryResponse tour = new TourSummaryResponse("t1", "찾는곳", "주소", "tel", "img", 1.0, 1.0);
+        when(tourService.searchByKeyword("찾는곳", 1)).thenReturn(List.of(tour));
+        when(facilityService.searchByKeyword("찾는곳", 1)).thenReturn(List.of());
+        when(matchingService.resolveOptionalPet(1L, 9L)).thenReturn(PET);
+        when(matchingService.matchTourForPet(PET, "t1"))
+                .thenReturn(new MatchResponse(MatchResponse.STATUS_DENIED, "불가합니다", "raw"));
+
+        List<ExploreItem> result = exploreService.explore(1L, null, null, "가능", 9L, 1, "찾는곳");
+
+        assertThat(result).isEmpty();
+    }
+
     @Test
     void 지역_카테고리_둘_다_생략하면_양쪽_다_필터없이_전체_조회한다() {
         TourSummaryResponse tour = new TourSummaryResponse("t1", "제목", "주소", "tel", "img", 1.0, 1.0);

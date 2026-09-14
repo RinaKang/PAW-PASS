@@ -85,4 +85,10 @@ public class User {
         this.primaryPetId = petId;
         this.updatedAt = LocalDateTime.now();
     }
+
+    /** 직접 업로드한 프로필 이미지로 picture를 덮어쓴다(2026-09-15 추가) - 이전엔 구글 로그인 시점에만 채워졌음. */
+    public void updatePicture(String picture) {
+        this.picture = picture;
+        this.updatedAt = LocalDateTime.now();
+    }
 }

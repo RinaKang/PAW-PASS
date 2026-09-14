@@ -90,6 +90,24 @@ public class FacilityService {
         return resolveImage(facility);
     }
 
+    /**
+     * /explore의 keyword 검색용 - search()와 이미지 예산/지연 로딩 로직은 동일하고 조회 조건만 다르다.
+     */
+    public List<FacilitySummaryResponse> searchByKeyword(String keyword, int page) {
+        var pageable = PageRequest.of(Math.max(page - 1, 0), PAGE_SIZE);
+        List<PetFacility> facilities = petFacilityRepository.searchByKeyword(keyword, pageable);
+
+        List<CompletableFuture<FacilitySummaryResponse>> futures = new ArrayList<>();
+        int remainingImageBudget = MAX_ITEMS_TO_FETCH_IMAGE;
+        for (PetFacility facility : facilities) {
+            boolean withinBudget = remainingImageBudget-- > 0;
+            futures.add(withinBudget
+                    ? CompletableFuture.supplyAsync(() -> toSummaryWithImage(facility), imageFetchExecutor)
+                    : CompletableFuture.completedFuture(FacilitySummaryResponse.from(facility)));
+        }
+        return futures.stream().map(CompletableFuture::join).toList();
+    }
+
     private FacilityImageResponse resolveImage(PetFacility facility) {
         String placeId = resolvePlaceId(facility);
         if (placeId == null || placeId.isBlank()) {

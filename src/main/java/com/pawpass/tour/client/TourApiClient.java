@@ -81,6 +81,29 @@ public class TourApiClient {
     }
 
 
+    /**
+     * areaBasedList2(지역 코드 기반)와 달리 lDongRegnCd 없이 이름/키워드로 전국을 대상으로 검색한다.
+     * 응답 구조(response.body.items.item)는 areaBasedList2와 동일해서 같은 DTO를 재사용한다.
+     */
+    public TourAreaBasedListResponse searchKeyword(Integer numOfRows, Integer pageNo, String arrange, String keyword) {
+        return tourApiWebClient.get()
+                .uri(uriBuilder -> {
+                    uriBuilder.path("/searchKeyword2")
+                            .queryParam("serviceKey", decodedServiceKey())
+                            .queryParam("MobileOS", MOBILE_OS)
+                            .queryParam("MobileApp", MOBILE_APP)
+                            .queryParam("_type", "json")
+                            .queryParam("keyword", keyword);
+                    if (numOfRows != null) uriBuilder.queryParam("numOfRows", numOfRows);
+                    if (pageNo != null) uriBuilder.queryParam("pageNo", pageNo);
+                    if (arrange != null) uriBuilder.queryParam("arrange", arrange);
+                    return uriBuilder.build();
+                })
+                .retrieve()
+                .bodyToMono(TourAreaBasedListResponse.class)
+                .block();
+    }
+
     public TourDetailCommonItem detailCommon(String contentId) {
         // contentId만 넘긴다 - defaultYN/firstImageYN/addrinfoYN/overviewYN 같은 필터 파라미터는
         // 이 API 버전에 없고, 특히 defaultYN을 보내면 INVALID_REQUEST_PARAMETER_ERROR로 요청 자체가 거부된다

@@ -2,11 +2,16 @@ package com.pawpass.global.exception;
 
 import com.pawpass.global.response.ApiResponse;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.nio.charset.StandardCharsets;
 
@@ -53,6 +58,55 @@ class GlobalExceptionHandlerTest {
         ResponseEntity<ApiResponse<Object>> response = handler.handleExternalApiFailure(e);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+        assertThat(response.getBody().isSuccess()).isFalse();
+    }
+
+    // 2026-09-15: 프로필 이미지 업로드(POST /users/me/profile-image, multipart/form-data 전용)를 JSON이나
+    // 빈 본문으로 호출하면 이 예외가 던져지는데, 원래 안 잡혀 있어서 500으로 새던 실제 버그
+    // (라이브 테스트로 발견, 다른 누락 예외 핸들러들과 같은 유형).
+    @Test
+    void 지원하지_않는_Content_Type은_500이_아니라_400으로_처리된다() {
+        HttpMediaTypeNotSupportedException e = new HttpMediaTypeNotSupportedException("Content-Type is not supported");
+
+        ResponseEntity<ApiResponse<Object>> response = handler.handleUnsupportedMediaType(e);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody().isSuccess()).isFalse();
+    }
+
+    // 2026-09-15: multipart 요청인데 필수 파트("image")가 아예 빠졌을 때 - 위와 같은 라이브 테스트에서
+    // 함께 발견된 500 버그.
+    @Test
+    void 필수_멀티파트_파트_누락은_500이_아니라_400으로_처리된다() {
+        MissingServletRequestPartException e = new MissingServletRequestPartException("image");
+
+        ResponseEntity<ApiResponse<Object>> response = handler.handleMissingPart(e);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody().isSuccess()).isFalse();
+        assertThat(response.getBody().getMessage()).contains("image");
+    }
+
+    @Test
+    void 업로드_용량_초과는_500이_아니라_400으로_처리된다() {
+        MaxUploadSizeExceededException e = new MaxUploadSizeExceededException(5L * 1024 * 1024);
+
+        ResponseEntity<ApiResponse<Object>> response = handler.handleUploadTooLarge(e);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody().isSuccess()).isFalse();
+    }
+
+    // 2026-09-15: 프로필 이미지 정적 서빙(/uploads/**)을 붙이면서 처음 발견 - 없는 파일을 요청하면
+    // Spring 6.1+가 이 예외를 던지는데 안 잡혀 있으면 500으로 샌다(라이브 테스트로 발견). 파일이 없을
+    // 뿐이니 404가 맞다.
+    @Test
+    void 존재하지_않는_정적_리소스는_500이_아니라_404로_처리된다() {
+        NoResourceFoundException e = new NoResourceFoundException(HttpMethod.GET, "profile-images/missing.jpg");
+
+        ResponseEntity<ApiResponse<Object>> response = handler.handleNoResourceFound(e);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
         assertThat(response.getBody().isSuccess()).isFalse();
     }
 }
