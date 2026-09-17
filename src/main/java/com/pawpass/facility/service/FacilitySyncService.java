@@ -37,6 +37,15 @@ public class FacilitySyncService {
     // 현재 값(perPage=1000, ≈1.1MB)은 그 상한에서 충분히 여유 있어 그대로 유지.
     private static final int PAGE_SIZE = 1000;
 
+    // 한 페이지가 예상보다 일찍 빈 응답을 주면(진짜 끝이 아니라 일시적 API 문제일 수 있음) 이만큼 재시도한다
+    // (2026-09-19 추가 - 70,650여 건을 71페이지쯤 순회하는 도중 특정 실행에서 21,173건, 다른 실행에서
+    // 67,839건으로 결과가 들쭉날쭉했던 문제를 조사하다 발견함. 예전엔 "items가 비어있으면 끝났다"고
+    // 단정해서 조기 종료했는데, 실제로는 totalCount에 한참 못 미친 페이지에서 빈 응답을 받아도 그대로
+    // 정상 종료처럼 로그를 찍고 끝나버렸다 - 원본 API 자체가 이따금 특정 페이지에서 빈 응답을 주는 것으로
+    // 보임(perPage=3900↑에서 나던 것과 같은 부류의 현상이 perPage=1000에서도 드물게 재현되는 듯).
+    private static final int MAX_EMPTY_PAGE_RETRIES = 3;
+    private static final long EMPTY_PAGE_RETRY_DELAY_MS = 2000;
+
     private final KcisaApiClient kcisaApiClient;
     private final PetFacilityRepository petFacilityRepository;
 
@@ -44,11 +53,20 @@ public class FacilitySyncService {
         int page = 1;
         int totalSaved = 0;
         int totalUnchanged = 0;
+        Integer totalCount = null;
+        boolean truncated = false;
 
         while (true) {
-            KcisaFacilityListResponse response = kcisaApiClient.fetchPage(page, PAGE_SIZE);
+            KcisaFacilityListResponse response = fetchPageWithRetry(page, totalCount);
+            totalCount = response.totalCount();
             List<KcisaFacilityItem> items = response.data();
+
+            boolean coveredEverything = totalCount != null && (long) (page - 1) * PAGE_SIZE >= totalCount;
             if (items == null || items.isEmpty()) {
+                if (!coveredEverything) {
+                    // totalCount에 한참 못 미쳤는데 재시도 끝에도 빈 응답 - 진짜 끝이 아니라 중단된 것이다.
+                    truncated = true;
+                }
                 break;
             }
 
@@ -86,15 +104,54 @@ public class FacilitySyncService {
             petFacilityRepository.saveAll(toSave);
             totalSaved += toSave.size();
 
-            Integer totalCount = response.totalCount();
             if (totalCount == null || (long) page * PAGE_SIZE >= totalCount) {
                 break;
             }
             page++;
         }
 
-        log.info("한국문화정보원 반려동물 동반 시설 동기화 완료 - {}건 저장(신규/변경), {}건 변경없음 스킵",
-                totalSaved, totalUnchanged);
+        if (truncated) {
+            log.warn("한국문화정보원 반려동물 동반 시설 동기화 중단됨 - {}건 저장(신규/변경), {}건 변경없음 스킵, "
+                            + "페이지 {}에서 예상(totalCount={})보다 일찍 빈 응답을 받아 재시도({}회)했지만 실패함. "
+                            + "다음 스케줄 실행 때 다시 시도됨 - 계속 반복되면 원본 API 자체 점검 필요.",
+                    totalSaved, totalUnchanged, page, totalCount, MAX_EMPTY_PAGE_RETRIES);
+        } else {
+            log.info("한국문화정보원 반려동물 동반 시설 동기화 완료 - {}건 저장(신규/변경), {}건 변경없음 스킵 (totalCount={})",
+                    totalSaved, totalUnchanged, totalCount);
+        }
+    }
+
+    /**
+     * totalCount 기준으로 아직 다 순회하지 못한 게 확실한 상황에서 빈 응답이 오면, 진짜 끝이 아니라
+     * 일시적 문제로 보고 재시도한다. 첫 페이지(totalCount를 아직 모름)는 무조건 그대로 반환 - 비교할
+     * 기준 자체가 없어서 재시도 여부를 판단할 수 없다.
+     */
+    private KcisaFacilityListResponse fetchPageWithRetry(int page, Integer knownTotalCount) {
+        KcisaFacilityListResponse response = kcisaApiClient.fetchPage(page, PAGE_SIZE);
+        if (knownTotalCount == null) {
+            return response;
+        }
+        boolean coveredEverything = (long) (page - 1) * PAGE_SIZE >= knownTotalCount;
+        for (int attempt = 1;
+             attempt <= MAX_EMPTY_PAGE_RETRIES && !coveredEverything && isEmpty(response);
+             attempt++) {
+            log.warn("페이지 {} 응답이 비어있음(totalCount={}, 아직 다 순회 못함) - {}번째 재시도", page, knownTotalCount, attempt);
+            sleep(EMPTY_PAGE_RETRY_DELAY_MS);
+            response = kcisaApiClient.fetchPage(page, PAGE_SIZE);
+        }
+        return response;
+    }
+
+    private boolean isEmpty(KcisaFacilityListResponse response) {
+        return response.data() == null || response.data().isEmpty();
+    }
+
+    private void sleep(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     private PetFacility toEntity(KcisaFacilityItem item) {

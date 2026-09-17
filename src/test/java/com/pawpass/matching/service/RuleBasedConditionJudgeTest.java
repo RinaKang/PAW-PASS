@@ -156,4 +156,40 @@ class RuleBasedConditionJudgeTest {
 
         assertThat(RuleBasedConditionJudge.tryExtractStructured(worldcup)).isEmpty();
     }
+
+    // 2026-09-19: "카페 카테고리에 가능만 뜨고 조건부/불가는 하나도 안 뜬다"는 리포트로 발견 - KCISA
+    // allowed_pet_size 필드 실측 원문(staywell cafe, 2026-09-19)은 "소형견만 동반 가능합니다" 같은 문장이
+    // 아니라 "소형" 한 단어뿐이라 "가능"이 원문에 아예 없다. 기존 게이트(POSITIVE_HINT 요구)에 걸려 전부
+    // AI로 넘어가고 있었는데, 지금 Gemini 한도 소진으로 대부분 확인필요에 눌러앉아 있었다.
+    @Test
+    void KCISA_소형_단독_값은_가능_단어가_없어도_조건부로_추출한다() {
+        String rawText = "제한사항 없음\n소형\n해당없음\n없음";
+
+        Optional<ParsedCondition> result = RuleBasedConditionJudge.tryExtractStructured(rawText);
+
+        assertThat(result).isPresent();
+        assertThat(result.get().explicitlyAllowed()).isTrue();
+        assertThat(result.get().maxSizeCategory()).isEqualTo("SMALL");
+        assertThat(result.get().confidence()).isEqualTo(1.0);
+    }
+
+    @Test
+    void KCISA_중형_대형_단독_값도_각각_인식한다() {
+        assertThat(RuleBasedConditionJudge.tryExtractStructured("제한사항 없음\n중형\n해당없음\n없음")
+                .get().maxSizeCategory()).isEqualTo("MEDIUM");
+        assertThat(RuleBasedConditionJudge.tryExtractStructured("제한사항 없음\n대형\n해당없음\n없음")
+                .get().maxSizeCategory()).isEqualTo("LARGE");
+    }
+
+    // "소형 제외"처럼 그 줄에 다른 말이 붙으면 애매한 뜻이 될 수 있으니(제외 대상인지 허용 대상인지) 단독
+    // 줄로 딱 떨어질 때만 매치해야 한다 - 붙어있으면 여전히 AI로 넘어가야 정상.
+    @Test
+    void 크기_단어에_다른_말이_붙어있으면_단독_값으로_인식하지_않는다() {
+        assertThat(RuleBasedConditionJudge.tryExtractStructured("제한사항 없음\n소형 제외\n해당없음\n없음")).isEmpty();
+    }
+
+    @Test
+    void 크기_단독_값이어도_불가_금지가_섞여있으면_여전히_AI로_넘긴다() {
+        assertThat(RuleBasedConditionJudge.tryExtractStructured("소형\n단, 일부 매장은 동반 불가")).isEmpty();
+    }
 }
