@@ -19,6 +19,8 @@ import org.springframework.web.multipart.MultipartFile;
 @Transactional(readOnly = true)
 public class UserService {
 
+    private static final String PROFILE_IMAGE_CATEGORY = "profile-images";
+
     private final UserRepository userRepository;
     private final PetRepository petRepository;
     private final TripRepository tripRepository;
@@ -54,9 +56,9 @@ public class UserService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다: " + userId));
         String oldPicture = user.getPicture();
-        String newPicture = profileImageStorage.store(image, userId);
+        String newPicture = profileImageStorage.store(image, PROFILE_IMAGE_CATEGORY, userId);
         user.updatePicture(newPicture);
-        profileImageStorage.deleteIfManaged(oldPicture);
+        profileImageStorage.deleteIfManaged(oldPicture, PROFILE_IMAGE_CATEGORY);
         return UserResponse.from(user);
     }
 

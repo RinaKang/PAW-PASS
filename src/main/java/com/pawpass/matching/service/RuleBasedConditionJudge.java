@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * AI 호출 전에 규칙만으로 판정 가능한 경우를 최대한 걸러내서 Gemini 호출을 아낀다 (하이브리드 매칭의
@@ -50,6 +51,20 @@ final class RuleBasedConditionJudge {
     // 절대 규칙만으로 "허용"을 단정하지 않는다 - "일부는 불가할 수 있음" 같은 예외를 놓치는 게 제일 위험한 오탐.
     private static final List<String> ANY_DENIAL_HINT = List.of("불가", "금지");
     private static final List<String> POSITIVE_HINT = List.of("가능");
+
+    // 아래 준비물-전용 패턴(무게/크기 제한 없이 "목줄만 챙기면 가능" 케이스)의 추가 게이트 - 2026-09-15,
+    // Gemini 무료 티어 한도가 요청 몇 건 만에 소진되는 걸 실측으로 확인한 뒤 규칙 커버리지를 넓히면서 추가.
+    // "문의"/"상이"/"제한"/"협의"가 섞여 있으면(예: "실내 시설은 개별 문의 필요", "매장별 정책이 상이") 그
+    // 자체가 "케이스별로 다르다"는 신호라 규칙으로 단정하지 않고 AI로 넘긴다 - "불가"/"금지"만큼 확실한
+    // 위험 신호는 아니지만, 이 단어들이 있는 원문은 실측상 전부 매장/구역별 예외가 있는 경우였다.
+    private static final List<String> AMBIGUITY_HINT = List.of("문의", "상이", "제한", "협의");
+
+    // TourAPI 반려동물 동반 조건 원문 실측(2026-09-15, 서울 지역 관광지 20건 샘플) - 거의 전 항목이 이
+    // 어휘들로 "준비물"을 표현한다("목줄 착용", "배변봉투 지참" 등). 이 중 하나라도 있으면 "가능하지만
+    // 준비물 필요"로 조건부 판정한다.
+    private static final List<String> REQUIRED_ITEM_KEYWORDS = List.of(
+            "목줄", "리드줄", "입마개", "배변봉투", "이동장", "켄넬", "유모차", "예방접종"
+    );
 
     private RuleBasedConditionJudge() {
     }
@@ -102,11 +117,24 @@ final class RuleBasedConditionJudge {
             maxSizeCategory = "MEDIUM";
         }
 
-        if (maxWeightKg == null && maxSizeCategory == null) {
+        if (maxWeightKg != null || maxSizeCategory != null) {
+            return Optional.of(new ParsedCondition(
+                    true, false, maxWeightKg, maxSizeCategory, "", restrictionText(maxWeightKg, maxSizeCategory), 1.0));
+        }
+
+        // 무게/크기 제한은 없고 "목줄 착용", "배변봉투 지참" 같은 준비물만 언급된, TourAPI에서 가장 흔한
+        // 패턴이다(2026-09-15 추가). AMBIGUITY_HINT가 있으면(사례별로 다를 수 있다는 신호) 규칙으로
+        // 단정하지 않고 AI로 넘긴다.
+        if (containsAny(rawText, AMBIGUITY_HINT)) {
             return Optional.empty();
         }
-        return Optional.of(new ParsedCondition(
-                true, false, maxWeightKg, maxSizeCategory, "", restrictionText(maxWeightKg, maxSizeCategory), 1.0));
+        String requiredItems = REQUIRED_ITEM_KEYWORDS.stream()
+                .filter(rawText::contains)
+                .collect(Collectors.joining(", "));
+        if (requiredItems.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(new ParsedCondition(true, false, null, null, requiredItems, "", 1.0));
     }
 
     private static String restrictionText(Double maxWeightKg, String maxSizeCategory) {

@@ -80,7 +80,7 @@ class UserServiceTest {
                 .picture("http://localhost:8080/uploads/profile-images/old.jpg").build();
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
         MultipartFile image = new MockMultipartFile("image", "photo.jpg", "image/jpeg", new byte[]{1, 2, 3});
-        when(profileImageStorage.store(image, 1L))
+        when(profileImageStorage.store(image, "profile-images", 1L))
                 .thenReturn("http://localhost:8080/uploads/profile-images/new.jpg");
 
         UserResponse result = userService.updateProfileImage(1L, image);
@@ -96,12 +96,12 @@ class UserServiceTest {
                 .picture("https://lh3.googleusercontent.com/구글사진").build();
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
         MultipartFile image = new MockMultipartFile("image", "photo.jpg", "image/jpeg", new byte[]{1});
-        when(profileImageStorage.store(any(), eq(1L)))
+        when(profileImageStorage.store(any(), eq("profile-images"), eq(1L)))
                 .thenReturn("http://localhost:8080/uploads/profile-images/new.jpg");
 
         userService.updateProfileImage(1L, image);
 
-        verify(profileImageStorage).deleteIfManaged("https://lh3.googleusercontent.com/구글사진");
+        verify(profileImageStorage).deleteIfManaged("https://lh3.googleusercontent.com/구글사진", "profile-images");
     }
 
     @Test
@@ -112,6 +112,6 @@ class UserServiceTest {
 
         assertThatThrownBy(() -> userService.updateProfileImage(99L, image))
                 .isInstanceOf(IllegalArgumentException.class);
-        verify(profileImageStorage, never()).store(any(), any());
+        verify(profileImageStorage, never()).store(any(), any(), any());
     }
 }

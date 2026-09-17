@@ -16,6 +16,12 @@ public record TourDetailPetTourItem(
         String acmpyTypeCd,
         String acmpyPsblCpam,
         String acmpyNeedMtr,
-        String etcAcmpyInfo
+        String etcAcmpyInfo,
+        // 2026-09-15 추가 - 원래도 TourAPI 응답엔 있었지만 이 DTO에 필드가 없어서
+        // @JsonIgnoreProperties(ignoreUnknown=true)에 의해 조용히 버려지고 있었음(프론트 리포트로 발견).
+        String relaPosesFclty,   // 관련 구비 시설
+        String relaFrnshPrdlst,  // 관련 비치 품목
+        String relaPurcPrdlst,   // 관련 구매 품목
+        String relaRntlPrdlst    // 관련 렌탈 품목
 ) {
 }

@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -18,6 +19,7 @@ import java.util.List;
  * GET    /pets
  * PUT    /pets/{id}
  * DELETE /pets/{id}
+ * POST   /pets/{id}/profile-image (multipart/form-data, 2026-09-17 추가)
  */
 @RestController
 @RequestMapping("/pets")
@@ -45,5 +47,18 @@ public class PetController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@AuthenticationPrincipal Long userId, @PathVariable Long id) {
         petService.delete(userId, id);
+    }
+
+    /**
+     * multipart/form-data, 파일 파트 이름은 "image" 고정. jpg/png/webp, 5MB 이하만 허용
+     * (ProfileImageStorage 참고) - 그 외엔 400. 본인 소유가 아닌 반려동물이면 400.
+     */
+    @PostMapping(value = "/{id}/profile-image", consumes = "multipart/form-data")
+    public ApiResponse<PetResponse> updateProfileImage(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long id,
+            @RequestParam("image") MultipartFile image
+    ) {
+        return ApiResponse.success(petService.updateProfileImage(userId, id, image));
     }
 }

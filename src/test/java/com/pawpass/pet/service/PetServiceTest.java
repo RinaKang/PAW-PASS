@@ -7,17 +7,22 @@ import com.pawpass.pet.dto.PetResponse;
 import com.pawpass.pet.repository.PetRepository;
 import com.pawpass.user.domain.User;
 import com.pawpass.user.repository.UserRepository;
+import com.pawpass.user.service.ProfileImageStorage;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.lang.reflect.Field;
 import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -34,11 +39,13 @@ class PetServiceTest {
     private PetRepository petRepository;
     @Mock
     private UserRepository userRepository;
+    @Mock
+    private ProfileImageStorage profileImageStorage;
 
     private PetService petService;
 
     private void init() {
-        petService = new PetService(petRepository, userRepository);
+        petService = new PetService(petRepository, userRepository, profileImageStorage);
     }
 
     @Test
@@ -147,6 +154,51 @@ class PetServiceTest {
 
         assertThat(user.getPrimaryPetId()).isEqualTo(10L);
         verify(petRepository, never()).findAllByUserId(any()); // 대표가 아니었으니 재지정 로직 자체를 안 탐
+    }
+
+    // 2026-09-17: 반려동물 프로필 이미지 업로드 추가 - UserService.updateProfileImage와 같은 흐름
+    // (소유권 확인 후 저장, Pet.imageUrl 갱신, 예전 파일 정리)을 대상만 Pet으로 바꿔서 탄다.
+    @Test
+    void 프로필_이미지를_업로드하면_imageUrl이_새_URL로_바뀐다() {
+        init();
+        Pet pet = pet(10L);
+        when(petRepository.findByIdAndUserId(10L, 1L)).thenReturn(Optional.of(pet));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user()));
+        MultipartFile image = new MockMultipartFile("image", "photo.jpg", "image/jpeg", new byte[]{1, 2, 3});
+        when(profileImageStorage.store(image, "pet-images", 10L))
+                .thenReturn("http://localhost:8080/uploads/pet-images/10_new.jpg");
+
+        PetResponse result = petService.updateProfileImage(1L, 10L, image);
+
+        assertThat(result.imageUrl()).isEqualTo("http://localhost:8080/uploads/pet-images/10_new.jpg");
+        assertThat(pet.getImageUrl()).isEqualTo("http://localhost:8080/uploads/pet-images/10_new.jpg");
+    }
+
+    @Test
+    void 프로필_이미지_업로드_시_예전_파일을_정리한다() {
+        init();
+        Pet pet = pet(10L);
+        pet.updateImage("http://localhost:8080/uploads/pet-images/10_old.jpg");
+        when(petRepository.findByIdAndUserId(10L, 1L)).thenReturn(Optional.of(pet));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user()));
+        MultipartFile image = new MockMultipartFile("image", "photo.jpg", "image/jpeg", new byte[]{1});
+        when(profileImageStorage.store(any(), eq("pet-images"), eq(10L)))
+                .thenReturn("http://localhost:8080/uploads/pet-images/10_new.jpg");
+
+        petService.updateProfileImage(1L, 10L, image);
+
+        verify(profileImageStorage).deleteIfManaged("http://localhost:8080/uploads/pet-images/10_old.jpg", "pet-images");
+    }
+
+    @Test
+    void 본인_소유가_아닌_반려동물은_프로필_이미지를_업로드할_수_없다() {
+        init();
+        when(petRepository.findByIdAndUserId(99L, 1L)).thenReturn(Optional.empty());
+        MultipartFile image = new MockMultipartFile("image", "photo.jpg", "image/jpeg", new byte[]{1});
+
+        assertThatThrownBy(() -> petService.updateProfileImage(1L, 99L, image))
+                .isInstanceOf(IllegalArgumentException.class);
+        verify(profileImageStorage, never()).store(any(), any(), any());
     }
 
     private PetRequest petRequest() {

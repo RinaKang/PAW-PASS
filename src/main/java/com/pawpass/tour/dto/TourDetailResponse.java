@@ -76,17 +76,28 @@ public record TourDetailResponse(
                 .toList();
     }
 
+    /**
+     * relaPosesFclty/relaFrnshPrdlst/relaPurcPrdlst/relaRntlPrdlst(2026-09-15 추가) - TourAPI
+     * detailPetTour2 응답엔 원래도 있던 필드인데 TourDetailPetTourItem에 선언이 안 돼 있어서
+     * @JsonIgnoreProperties(ignoreUnknown=true)에 의해 파싱 단계에서 조용히 버려지고 있었다
+     * (프론트에서 "이 필드들이 안 나온다"는 리포트로 발견 - 응답 자체엔 있는데 우리 DTO가 안 받았음).
+     */
     public record PetCondition(
             String acmpyTypeCd,
             String acmpyPsblCpam,
             String acmpyNeedMtr,
-            String etcAcmpyInfo
+            String etcAcmpyInfo,
+            String relaPosesFclty,
+            String relaFrnshPrdlst,
+            String relaPurcPrdlst,
+            String relaRntlPrdlst
     ) {
         public static PetCondition from(TourDetailPetTourItem pet) {
             if (pet == null) {
-                return new PetCondition(null, null, null, null);
+                return new PetCondition(null, null, null, null, null, null, null, null);
             }
-            return new PetCondition(pet.acmpyTypeCd(), pet.acmpyPsblCpam(), pet.acmpyNeedMtr(), pet.etcAcmpyInfo());
+            return new PetCondition(pet.acmpyTypeCd(), pet.acmpyPsblCpam(), pet.acmpyNeedMtr(), pet.etcAcmpyInfo(),
+                    pet.relaPosesFclty(), pet.relaFrnshPrdlst(), pet.relaPurcPrdlst(), pet.relaRntlPrdlst());
         }
     }
 }

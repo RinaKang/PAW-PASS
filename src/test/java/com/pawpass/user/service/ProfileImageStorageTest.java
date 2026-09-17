@@ -20,6 +20,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  */
 class ProfileImageStorageTest {
 
+    private static final String CATEGORY = "profile-images";
+
     @TempDir
     Path tempDir;
 
@@ -36,43 +38,57 @@ class ProfileImageStorageTest {
     void 정상_이미지를_저장하면_파일이_실제로_생기고_공개_URL을_반환한다() {
         MultipartFile image = new MockMultipartFile("image", "photo.jpg", "image/jpeg", new byte[]{1, 2, 3});
 
-        String url = storage.store(image, 1L);
+        String url = storage.store(image, CATEGORY, 1L);
 
         assertThat(url).startsWith("http://localhost:8080/uploads/profile-images/1_").endsWith(".jpg");
         String filename = url.substring(url.lastIndexOf('/') + 1);
         assertThat(Files.exists(tempDir.resolve("profile-images").resolve(filename))).isTrue();
     }
 
+    // 2026-09-17: 반려동물 프로필 이미지(PetService)도 같은 클래스를 쓰게 되면서 category로 하위 폴더를
+    // 분리했다 - 서로 다른 category는 서로 다른 폴더에 저장돼야 한다.
+    @Test
+    void category가_다르면_다른_폴더에_저장된다() {
+        MultipartFile image = new MockMultipartFile("image", "photo.jpg", "image/jpeg", new byte[]{1});
+
+        String url = storage.store(image, "pet-images", 16L);
+
+        assertThat(url).startsWith("http://localhost:8080/uploads/pet-images/16_");
+        String filename = url.substring(url.lastIndexOf('/') + 1);
+        assertThat(Files.exists(tempDir.resolve("pet-images").resolve(filename))).isTrue();
+        assertThat(Files.exists(tempDir.resolve("profile-images").resolve(filename))).isFalse();
+    }
+
     @Test
     void 빈_파일은_거부한다() {
         MultipartFile empty = new MockMultipartFile("image", "photo.jpg", "image/jpeg", new byte[0]);
 
-        assertThatThrownBy(() -> storage.store(empty, 1L)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> storage.store(empty, CATEGORY, 1L)).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
     void 허용되지_않는_형식은_거부한다() {
         MultipartFile pdf = new MockMultipartFile("image", "doc.pdf", "application/pdf", new byte[]{1});
 
-        assertThatThrownBy(() -> storage.store(pdf, 1L)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> storage.store(pdf, CATEGORY, 1L)).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
     void 용량_상한을_넘으면_거부한다() {
         MultipartFile tooBig = new MockMultipartFile("image", "photo.jpg", "image/jpeg", new byte[6 * 1024 * 1024]);
 
-        assertThatThrownBy(() -> storage.store(tooBig, 1L)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> storage.store(tooBig, CATEGORY, 1L)).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
     void 우리가_저장한_파일이면_삭제한다() throws IOException {
         MultipartFile image = new MockMultipartFile("image", "photo.jpg", "image/jpeg", new byte[]{1});
-        String url = storage.store(image, 1L);
+        String url = storage.store(image, CATEGORY, 1L);
         String filename = url.substring(url.lastIndexOf('/') + 1);
         Path saved = tempDir.resolve("profile-images").resolve(filename);
         assertThat(Files.exists(saved)).isTrue();
 
-        storage.deleteIfManaged(url);
+        storage.deleteIfManaged(url, CATEGORY);
 
         assertThat(Files.exists(saved)).isFalse();
     }
@@ -80,12 +96,12 @@ class ProfileImageStorageTest {
     // 구글 로그인 시 받아온 picture URL(우리가 저장한 파일이 아님)은 절대 건드리면 안 된다.
     @Test
     void 우리가_저장하지_않은_URL은_건드리지_않는다() {
-        storage.deleteIfManaged("https://lh3.googleusercontent.com/구글사진");
+        storage.deleteIfManaged("https://lh3.googleusercontent.com/구글사진", CATEGORY);
         // 예외 없이 조용히 넘어가면 성공 - 삭제 시도 자체를 안 함
     }
 
     @Test
     void null_picture는_그냥_넘어간다() {
-        storage.deleteIfManaged(null);
+        storage.deleteIfManaged(null, CATEGORY);
     }
 }

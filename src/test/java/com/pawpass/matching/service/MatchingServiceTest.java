@@ -253,7 +253,7 @@ class MatchingServiceTest {
     private TourDetailResponse tourDetail(String etcAcmpyInfo) {
         return new TourDetailResponse(
                 "123", "제목", "주소", "tel", "hours", java.util.List.of(),
-                new TourDetailResponse.PetCondition(null, null, null, etcAcmpyInfo),
+                new TourDetailResponse.PetCondition(null, null, null, etcAcmpyInfo, null, null, null, null),
                 "issued", 1.0, 1.0);
     }
 

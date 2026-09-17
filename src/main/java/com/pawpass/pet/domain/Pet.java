@@ -59,6 +59,10 @@ public class Pet {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    // 2026-09-17 추가 - 사용자 프로필 이미지(User.picture)와 같은 방식(서버 로컬 디스크, ProfileImageStorage).
+    @Column(name = "image_url", length = 500)
+    private String imageUrl;
+
     @Builder
     public Pet(Long userId, String name, String species, String breed, Double weight, PetSize size,
                boolean hasCarrier, boolean hasLeash, boolean hasMuzzle, boolean hasWasteBags,
@@ -96,5 +100,9 @@ public class Pet {
         if (hasWasteBags != null) this.hasWasteBags = hasWasteBags;
         if (hasStroller != null) this.hasStroller = hasStroller;
         if (hasDiaper != null) this.hasDiaper = hasDiaper;
+    }
+
+    public void updateImage(String imageUrl) {
+        this.imageUrl = imageUrl;
     }
 }

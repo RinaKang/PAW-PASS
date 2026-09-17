@@ -6,9 +6,11 @@ import com.pawpass.pet.dto.PetResponse;
 import com.pawpass.pet.repository.PetRepository;
 import com.pawpass.user.domain.User;
 import com.pawpass.user.repository.UserRepository;
+import com.pawpass.user.service.ProfileImageStorage;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -17,8 +19,11 @@ import java.util.List;
 @Transactional(readOnly = true)
 public class PetService {
 
+    private static final String PET_IMAGE_CATEGORY = "pet-images";
+
     private final PetRepository petRepository;
     private final UserRepository userRepository;
+    private final ProfileImageStorage profileImageStorage;
 
     /**
      * 반려동물이 1마리뿐이면(이번에 등록한 게 처음이자 유일한 반려동물이면) 자동으로 대표 반려동물로
@@ -84,6 +89,22 @@ public class PetService {
             List<Pet> remaining = petRepository.findAllByUserId(userId);
             user.changePrimaryPet(remaining.size() == 1 ? remaining.get(0).getId() : null);
         }
+    }
+
+    /**
+     * 소유권 확인(petRepository.findByIdAndUserId) 후 저장하고 이미지 URL을 갱신한다 - 사용자 프로필
+     * 이미지(UserService.updateProfileImage)와 같은 흐름, 대상만 Pet일 뿐이다(2026-09-17 추가).
+     */
+    @Transactional
+    public PetResponse updateProfileImage(Long userId, Long id, MultipartFile image) {
+        Pet pet = petRepository.findByIdAndUserId(id, userId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 반려동물입니다: " + id));
+        String oldImageUrl = pet.getImageUrl();
+        String newImageUrl = profileImageStorage.store(image, PET_IMAGE_CATEGORY, id);
+        pet.updateImage(newImageUrl);
+        profileImageStorage.deleteIfManaged(oldImageUrl, PET_IMAGE_CATEGORY);
+        Long primaryPetId = requireUser(userId).getPrimaryPetId();
+        return PetResponse.from(pet, id.equals(primaryPetId));
     }
 
     private User requireUser(Long userId) {

@@ -10,9 +10,11 @@ import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
+import org.springframework.web.reactive.function.client.WebClientRequestException;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -56,6 +58,21 @@ class GlobalExceptionHandlerTest {
                 429, "Too Many Requests", null, "쿼터 초과".getBytes(StandardCharsets.UTF_8), StandardCharsets.UTF_8);
 
         ResponseEntity<ApiResponse<Object>> response = handler.handleExternalApiFailure(e);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+        assertThat(response.getBody().isSuccess()).isFalse();
+    }
+
+    // 2026-09-16: WebClientResponseException(비-2xx 응답)과 달리, 연결 자체가 실패했을 때(타임아웃,
+    // 커넥션 리셋 등) 던져지는 별개 예외 타입 - 오래 떠있던 개발 서버의 WebClient 커넥션 풀에 죽은
+    // 커넥션이 남아있다가 이걸로 터지는 걸 실측(WebClientConfig의 커넥션 풀 유휴시간 제한이 근본 대응).
+    @Test
+    void 외부_API_연결_자체_실패는_500이_아니라_503으로_처리된다() {
+        WebClientRequestException e = new WebClientRequestException(
+                new java.io.IOException("Connection reset by peer"), HttpMethod.GET,
+                URI.create("https://apis.data.go.kr/some-endpoint"), new org.springframework.http.HttpHeaders());
+
+        ResponseEntity<ApiResponse<Object>> response = handler.handleExternalApiConnectionFailure(e);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
         assertThat(response.getBody().isSuccess()).isFalse();

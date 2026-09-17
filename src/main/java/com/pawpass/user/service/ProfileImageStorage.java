@@ -15,12 +15,15 @@ import java.util.UUID;
  * 프로필 이미지를 로컬 디스크에 저장한다(2026-09-15 추가, 사용자와 논의해서 클라우드 스토리지 대신 로컬
  * 디스크로 결정 - 서버 재배포/이전 시 파일이 사라지는 한계는 감수). WebMvcConfig가 file.upload-dir을
  * /uploads/**로 그대로 서빙하므로 여기서 저장하는 경로와 정확히 맞아야 한다.
+ *
+ * category(2026-09-17 추가)로 하위 폴더를 구분한다 - 처음엔 사용자 프로필 사진 전용이었는데, 반려동물
+ * 프로필 사진(PetService)도 똑같은 저장/검증 로직이 필요해져서 일반화했다. 저장소 이름은 그대로 뒀다 -
+ * 패키지 이동/리네임까지 하기엔 지금 필요한 변경 범위를 넘어선다는 판단(user 패키지에 있지만 pet도 같이 씀).
  */
 @Slf4j
 @Component
 public class ProfileImageStorage {
 
-    private static final String SUBDIR = "profile-images";
     private static final long MAX_FILE_SIZE_BYTES = 5L * 1024 * 1024;
     private static final Map<String, String> EXTENSION_BY_CONTENT_TYPE = Map.of(
             "image/jpeg", ".jpg",
@@ -35,38 +38,39 @@ public class ProfileImageStorage {
     private String baseUrl;
 
     /** 검증 후 저장하고, 프론트가 바로 쓸 수 있는 절대 URL(baseUrl 포함)을 반환한다. */
-    public String store(MultipartFile file, Long userId) {
+    public String store(MultipartFile file, String category, Long ownerId) {
         validate(file);
-        String filename = userId + "_" + UUID.randomUUID() + EXTENSION_BY_CONTENT_TYPE.get(file.getContentType());
-        Path targetDir = Path.of(uploadDir, SUBDIR);
+        String filename = ownerId + "_" + UUID.randomUUID() + EXTENSION_BY_CONTENT_TYPE.get(file.getContentType());
+        Path targetDir = Path.of(uploadDir, category);
         try {
             Files.createDirectories(targetDir);
             file.transferTo(targetDir.resolve(filename));
         } catch (IOException e) {
             throw new IllegalStateException("프로필 이미지 저장에 실패했습니다.", e);
         }
-        return publicPathPrefix() + filename;
+        return publicPathPrefix(category) + filename;
     }
 
     /**
      * 재업로드로 더 이상 안 쓰이게 된 예전 파일을 지운다 - 지우지 않으면 재업로드할 때마다 디스크에
-     * 파일이 계속 쌓인다. pictureUrl이 우리가 저장한 파일이 아니면(구글 계정 사진 URL 등) 그냥 넘어간다
+     * 파일이 계속 쌓인다. imageUrl이 우리가 저장한 파일이 아니면(구글 계정 사진 URL 등) 그냥 넘어간다
      * (건드리면 안 되는 외부 URL이라서).
      */
-    public void deleteIfManaged(String pictureUrl) {
-        if (pictureUrl == null || !pictureUrl.startsWith(publicPathPrefix())) {
+    public void deleteIfManaged(String imageUrl, String category) {
+        String prefix = publicPathPrefix(category);
+        if (imageUrl == null || !imageUrl.startsWith(prefix)) {
             return;
         }
-        String filename = pictureUrl.substring(publicPathPrefix().length());
+        String filename = imageUrl.substring(prefix.length());
         try {
-            Files.deleteIfExists(Path.of(uploadDir, SUBDIR, filename));
+            Files.deleteIfExists(Path.of(uploadDir, category, filename));
         } catch (IOException e) {
-            log.warn("예전 프로필 이미지 파일 삭제 실패(다음 정리 때 재시도 없이 그냥 방치됨): {}", pictureUrl, e);
+            log.warn("예전 이미지 파일 삭제 실패(다음 정리 때 재시도 없이 그냥 방치됨): {}", imageUrl, e);
         }
     }
 
-    private String publicPathPrefix() {
-        return baseUrl + "/uploads/" + SUBDIR + "/";
+    private String publicPathPrefix(String category) {
+        return baseUrl + "/uploads/" + category + "/";
     }
 
     private void validate(MultipartFile file) {

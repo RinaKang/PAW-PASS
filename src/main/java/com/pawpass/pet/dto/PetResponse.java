@@ -19,7 +19,8 @@ public record PetResponse(
         boolean hasStroller,
         boolean hasDiaper,
         LocalDateTime createdAt,
-        boolean isPrimary
+        boolean isPrimary,
+        String imageUrl
 ) {
     /** isPrimary 없이 쓰는 기존 호출부 호환용 - 대표 반려동물 여부를 모르는 컨텍스트에선 false로 채운다. */
     public static PetResponse from(Pet pet) {
@@ -31,7 +32,7 @@ public record PetResponse(
         return new PetResponse(
                 pet.getId(), pet.getName(), pet.getSpecies(), pet.getBreed(), pet.getWeight(),
                 pet.getSize(), pet.isHasCarrier(), pet.isHasLeash(), pet.isHasMuzzle(), pet.isHasWasteBags(),
-                pet.isHasStroller(), pet.isHasDiaper(), pet.getCreatedAt(), isPrimary
+                pet.isHasStroller(), pet.isHasDiaper(), pet.getCreatedAt(), isPrimary, pet.getImageUrl()
         );
     }
 }

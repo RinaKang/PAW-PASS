@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
+import org.springframework.web.reactive.function.client.WebClientRequestException;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
@@ -77,6 +78,20 @@ public class GlobalExceptionHandler {
         log.warn("외부 API 호출 실패 - status={}, body={}", e.getStatusCode(), e.getResponseBodyAsString());
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                 .body(ApiResponse.error("외부 서비스 호출에 실패했습니다. 잠시 후 다시 시도해주세요."));
+    }
+
+    /**
+     * 위와 달리 외부 서버가 응답(2xx든 에러든)을 아예 안 줬을 때 - 연결 자체가 실패했거나(타임아웃, 커넥션
+     * 리셋 등) DNS 조회 실패 같은 경우. WebClientResponseException과는 상속 관계가 아닌 별개 타입이라
+     * 따로 잡아야 한다(2026-09-16, 오래 떠있던 개발 서버의 WebClient 커넥션 풀에 죽은 커넥션이 남아있다가
+     * 이 예외로 터지는 걸 실측 - WebClientConfig의 커넥션 풀 유휴시간 제한이 근본 대응이고, 이건 그래도
+     * 남는 경우를 위한 방어망). 클라이언트 잘못이 아니므로 503이 맞다.
+     */
+    @ExceptionHandler(WebClientRequestException.class)
+    public ResponseEntity<ApiResponse<Object>> handleExternalApiConnectionFailure(WebClientRequestException e) {
+        log.warn("외부 API 연결 실패 - {}", e.getMessage());
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(ApiResponse.error("외부 서비스 연결에 실패했습니다. 잠시 후 다시 시도해주세요."));
     }
 
     /**

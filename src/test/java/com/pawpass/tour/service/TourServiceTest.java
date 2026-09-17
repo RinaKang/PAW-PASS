@@ -46,7 +46,8 @@ class TourServiceTest {
                 "123", "12", "행복 반려동물 공원", "서울시 강남구", "테헤란로 1", "02-1234-5678",
                 "http://img1.jpg", "http://img2.jpg", "설명", "20260101120000");
         TourDetailIntroItem intro = new TourDetailIntroItem("123", "09:00~18:00");
-        TourDetailPetTourItem pet = new TourDetailPetTourItem("123", "가능", "소형견만 가능", "목줄 필수", "실내 동반 불가");
+        TourDetailPetTourItem pet = new TourDetailPetTourItem(
+                "123", "가능", "소형견만 가능", "목줄 필수", "실내 동반 불가", null, null, null, null);
 
         when(tourApiClient.detailCommon("123")).thenReturn(common);
         when(tourApiClient.detailIntro("123", "12")).thenReturn(intro);
@@ -62,6 +63,27 @@ class TourServiceTest {
         assertThat(result.issuedDate()).isEqualTo("20260101120000");
         assertThat(result.petCondition().acmpyTypeCd()).isEqualTo("가능");
         assertThat(result.petCondition().acmpyPsblCpam()).isEqualTo("소형견만 가능");
+    }
+
+    // 2026-09-15: detailPetTour2 응답에 원래도 있던 필드인데 TourDetailPetTourItem에 선언이 안 돼 있어서
+    // ignoreUnknown=true에 의해 조용히 버려지고 있었음(프론트에서 "이 필드들이 안 나온다"는 리포트로 발견).
+    @Test
+    void getDetail_구비시설_비치품목_구매품목_렌탈품목도_함께_반환한다() {
+        TourDetailCommonItem common = new TourDetailCommonItem(
+                "123", "12", "제목", "주소1", null, "tel", "img", null, "overview", "modified");
+        TourDetailPetTourItem pet = new TourDetailPetTourItem(
+                "123", "가능", "소형견만 가능", "목줄 필수", "실내 동반 불가",
+                "배변봉투 비치", "식기, 방석", "간식 구매 가능", "유모차 렌탈 가능");
+        when(tourApiClient.detailCommon("123")).thenReturn(common);
+        when(tourApiClient.detailIntro("123", "12")).thenReturn(null);
+        when(tourApiClient.detailPetTour("123")).thenReturn(pet);
+
+        TourDetailResponse result = tourService.getDetail("123");
+
+        assertThat(result.petCondition().relaPosesFclty()).isEqualTo("배변봉투 비치");
+        assertThat(result.petCondition().relaFrnshPrdlst()).isEqualTo("식기, 방석");
+        assertThat(result.petCondition().relaPurcPrdlst()).isEqualTo("간식 구매 가능");
+        assertThat(result.petCondition().relaRntlPrdlst()).isEqualTo("유모차 렌탈 가능");
     }
 
     // 2026-09-13: 목록(TourSummaryResponse)엔 mapX/mapY가 있는데 상세엔 없어서 상세 페이지 지도에 핀을
