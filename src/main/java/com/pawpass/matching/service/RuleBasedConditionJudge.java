@@ -47,6 +47,17 @@ final class RuleBasedConditionJudge {
     private static final Pattern MEDIUM_LIMIT_PATTERN =
             Pattern.compile("중형견?\\s*(?:에\\s*한해|만|한정|까지|이하|이내)");
 
+    /**
+     * KCISA 실데이터(pet_facilities.allowed_pet_size) 실측(2026-09-19) - TourAPI처럼 "소형견만 동반
+     * 가능합니다" 같은 문장이 아니라 "소형"/"중형"/"대형" 딱 한 단어만 그 필드 값으로 들어있다. "가능"이라는
+     * 단어 자체가 원문 어디에도 없어서 기존 SMALL_ONLY_PATTERN/MEDIUM_LIMIT_PATTERN(둘 다 "만"/"까지"
+     * 같은 접미사를 요구)도, 아래 POSITIVE_HINT 게이트도 다 못 잡고 전부 AI로 넘어가고 있었다("카페인데
+     * 왜 가능만 뜨고 조건부/불가는 하나도 없냐"는 리포트로 발견). 한 줄 전체가 정확히 이 단어 하나뿐일
+     * 때만 매치한다("소형 제외"처럼 다른 말이 붙으면 매치 안 해서 애매한 경우는 그대로 AI로 넘어간다).
+     */
+    private static final Pattern BARE_SIZE_LINE_PATTERN =
+            Pattern.compile("(?m)^\\s*(소형|중형|대형)\\s*$");
+
     // tryExtractStructured 전용 게이트. "불가"/"금지"가 조금이라도 섞여 있으면(다른 조항에 대한 예외여도)
     // 절대 규칙만으로 "허용"을 단정하지 않는다 - "일부는 불가할 수 있음" 같은 예외를 놓치는 게 제일 위험한 오탐.
     private static final List<String> ANY_DENIAL_HINT = List.of("불가", "금지");
@@ -100,7 +111,20 @@ final class RuleBasedConditionJudge {
         if (rawText == null || rawText.isBlank()) {
             return Optional.empty();
         }
-        if (containsAny(rawText, ANY_DENIAL_HINT) || !containsAny(rawText, POSITIVE_HINT)) {
+        if (containsAny(rawText, ANY_DENIAL_HINT)) {
+            return Optional.empty();
+        }
+
+        // "가능" 단어가 아예 없어도, KCISA 원문 특유의 소형/중형/대형 단독 줄은 그 자체로 "이 크기까지
+        // 동반 가능"이라는 뜻이라 아래 POSITIVE_HINT 게이트보다 먼저 확인한다(2026-09-19 추가).
+        Matcher bareSizeMatcher = BARE_SIZE_LINE_PATTERN.matcher(rawText);
+        if (bareSizeMatcher.find()) {
+            String maxSizeCategory = sizeCategoryFromKorean(bareSizeMatcher.group(1));
+            return Optional.of(new ParsedCondition(
+                    true, false, null, maxSizeCategory, "", restrictionText(null, maxSizeCategory), 1.0));
+        }
+
+        if (!containsAny(rawText, POSITIVE_HINT)) {
             return Optional.empty();
         }
 
@@ -146,9 +170,22 @@ final class RuleBasedConditionJudge {
             if (sb.length() > 0) {
                 sb.append(", ");
             }
-            sb.append("SMALL".equals(maxSizeCategory) ? "소형견 한정" : "중형견까지 가능");
+            sb.append(switch (maxSizeCategory) {
+                case "SMALL" -> "소형견 한정";
+                case "MEDIUM" -> "중형견까지 가능";
+                default -> "대형견까지 가능"; // LARGE - PetSize 중 제일 큰 분류라 사실상 크기 제한 없음
+            });
         }
         return sb.toString();
+    }
+
+    /** BARE_SIZE_LINE_PATTERN이 뽑은 한글 크기 단어를 PetSize enum 이름으로 바꾼다. */
+    private static String sizeCategoryFromKorean(String korean) {
+        return switch (korean) {
+            case "소형" -> "SMALL";
+            case "중형" -> "MEDIUM";
+            default -> "LARGE";
+        };
     }
 
     private static boolean containsAny(String text, List<String> keywords) {

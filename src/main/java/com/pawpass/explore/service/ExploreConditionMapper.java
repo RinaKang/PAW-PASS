@@ -1,5 +1,6 @@
 package com.pawpass.explore.service;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -56,9 +57,64 @@ final class ExploreConditionMapper {
         return Optional.ofNullable(TOUR_REGION_MAP.get(commonRegion.trim()));
     }
 
-    /** facility(KCISA)는 지역 코드 체계가 없어 원문 지역명을 그대로 주소 부분일치 키워드로 쓴다 (매핑 불필요). */
+    /**
+     * "광주전남"(2026-09-19 추가) - 2026-07-01부로 광주·전남이 행정구역상 통합됐다는 걸 프론트에서 전달받아
+     * 만든 가상 지역 코드. TourAPI/KCISA 원본 데이터는 아직(실측 확인, 2026-09-19) 통합 이전 지역 구분을
+     * 그대로 쓰고 있어서, 원본 쪽에 새 지역명이 반영되길 기다리는 대신 우리 쪽에서 광주+전남 두 지역을
+     * 한 번에 조회해서 합쳐 보여주는 방식으로 대응한다. 나중에 원본 API들이 실제로 통합 명칭을 쓰기
+     * 시작하면 이 특례는 걷어내고 TOUR_REGION_MAP/FACILITY_REGION_KEYWORD_OVERRIDES에 그 명칭 하나만
+     * 새로 추가하면 된다.
+     */
+    private static final String COMBINED_GWANGJU_JEONNAM_REGION = "광주전남";
+
+    /**
+     * toTourRegion()의 복수형 - 보통은 그 결과를 그대로 1개짜리 리스트로 감싸서 돌려주지만(매핑이 없으면
+     * "필터 없음"을 뜻하는 TourRegion(null,null) 1개), "광주전남"이면 광주+전남 두 TourRegion을 함께
+     * 돌려준다. 호출부(ExploreService)가 이 리스트를 순회하면서 각각 tourService.search()를 부르고
+     * 합치면 기존 단일 지역 흐름과 완전히 같은 코드 경로를 탄다.
+     */
+    static List<TourRegion> toTourRegions(String commonRegion) {
+        if (isCombinedGwangjuJeonnam(commonRegion)) {
+            return List.of(TOUR_REGION_MAP.get("광주"), TOUR_REGION_MAP.get("전남"));
+        }
+        return List.of(toTourRegion(commonRegion).orElse(new TourRegion(null, null)));
+    }
+
+    /**
+     * KCISA는 주소 문자열 부분일치라 원문 지역명을 그대로 키워드로 써도 대체로 문제없지만, "광주"는
+     * 광주광역시와 경기도 광주시가 이름이 겹쳐서 그대로 쓰면 둘 다 걸린다(2026-09-19, "광주 검색했는데
+     * 경기도 결과가 섞여 나온다"는 리포트로 발견 - 실측: regionCode=광주 결과 20건 중 1건이 "경기도
+     * 광주시"였음). 이 경우만 정식 전체 명칭("광주광역시")으로 바꿔서 넘긴다 - 나머지 16개 지역+강릉은
+     * 이런 이름 충돌이 없어서(실측 확인) 그대로 원문 키워드를 쓴다.
+     */
+    private static final Map<String, String> FACILITY_REGION_KEYWORD_OVERRIDES = Map.of(
+            "광주", "광주광역시"
+    );
+
+    /** facility(KCISA)는 지역 코드 체계가 없어 원문 지역명을 그대로(또는 위 override로) 주소 부분일치 키워드로 쓴다. */
     static String toFacilityRegionKeyword(String commonRegion) {
-        return (commonRegion == null || commonRegion.isBlank()) ? null : commonRegion.trim();
+        if (commonRegion == null || commonRegion.isBlank()) {
+            return null;
+        }
+        String trimmed = commonRegion.trim();
+        return FACILITY_REGION_KEYWORD_OVERRIDES.getOrDefault(trimmed, trimmed);
+    }
+
+    /**
+     * toFacilityRegionKeyword()의 복수형 - "광주전남"이면 "광주광역시"/"전라남도" 두 키워드를 돌려주고,
+     * 그 외엔 기존 결과를 1개짜리 리스트로 감싼다(매핑 안 된 지역이라 null이 나오는 경우도 포함 - null도
+     * 그대로 1개 원소로 담아서 "필터 없이 전체 조회"라는 기존 의미를 유지한다. List.of()는 null 원소를
+     * 허용 안 해서 Collections.singletonList를 쓴다).
+     */
+    static List<String> toFacilityRegionKeywords(String commonRegion) {
+        if (isCombinedGwangjuJeonnam(commonRegion)) {
+            return List.of(FACILITY_REGION_KEYWORD_OVERRIDES.get("광주"), "전라남도");
+        }
+        return Collections.singletonList(toFacilityRegionKeyword(commonRegion));
+    }
+
+    private static boolean isCombinedGwangjuJeonnam(String commonRegion) {
+        return commonRegion != null && COMBINED_GWANGJU_JEONNAM_REGION.equals(commonRegion.trim());
     }
 
     // ===== 카테고리 =====

@@ -208,6 +208,49 @@ class ExploreServiceTest {
                 .containsExactlyInAnyOrder("t1", "t2");
     }
 
+    // 2026-09-19: 목록 카드에 불가/확인필요까지 뱃지로 다 보여주고 싶다는 프론트 요청 - showAll=true면
+    // 개인화 매칭은 그대로 계산하되(가능/조건부만 걸러내는) 기본 필터를 적용하지 않고 전부 반환한다.
+    @Test
+    void showAll이_true면_가능_조건부_기본_필터를_적용하지_않고_전부_반환한다() {
+        TourSummaryResponse allowed = new TourSummaryResponse("t1", "가능한곳", "주소1", "tel", "img", 1.0, 1.0);
+        TourSummaryResponse denied = new TourSummaryResponse("t3", "불가인곳", "주소3", "tel", "img", 3.0, 3.0);
+
+        when(tourService.search(null, null, null, null, null, null, 1)).thenReturn(List.of(allowed, denied));
+        when(facilityService.search(null, null, 1)).thenReturn(List.of());
+        when(matchingService.resolveOptionalPet(1L, 9L)).thenReturn(PET);
+        when(matchingService.matchTourForPet(PET, "t1"))
+                .thenReturn(new MatchResponse(MatchResponse.STATUS_ALLOWED, "", "raw"));
+        when(matchingService.matchTourForPet(PET, "t3"))
+                .thenReturn(new MatchResponse(MatchResponse.STATUS_DENIED, "", "raw"));
+
+        List<ExploreItem> result = exploreService.explore(1L, null, null, null, 9L, 1, null, true);
+
+        assertThat(result).extracting(ExploreItem::id, ExploreItem::matchStatus)
+                .containsExactlyInAnyOrder(
+                        org.assertj.core.groups.Tuple.tuple("t1", MatchResponse.STATUS_ALLOWED),
+                        org.assertj.core.groups.Tuple.tuple("t3", MatchResponse.STATUS_DENIED)
+                );
+    }
+
+    // matchStatus를 명시하면 showAll=true여도 그 필터가 우선한다(다른 모드들과 동일한 우선순위 원칙).
+    @Test
+    void showAll이_true여도_matchStatus를_명시하면_그_필터가_우선한다() {
+        TourSummaryResponse allowed = new TourSummaryResponse("t1", "가능한곳", "주소1", "tel", "img", 1.0, 1.0);
+        TourSummaryResponse denied = new TourSummaryResponse("t3", "불가인곳", "주소3", "tel", "img", 3.0, 3.0);
+
+        when(tourService.search(null, null, null, null, null, null, 1)).thenReturn(List.of(allowed, denied));
+        when(facilityService.search(null, null, 1)).thenReturn(List.of());
+        when(matchingService.resolveOptionalPet(1L, 9L)).thenReturn(PET);
+        when(matchingService.matchTourForPet(PET, "t1"))
+                .thenReturn(new MatchResponse(MatchResponse.STATUS_ALLOWED, "", "raw"));
+        when(matchingService.matchTourForPet(PET, "t3"))
+                .thenReturn(new MatchResponse(MatchResponse.STATUS_DENIED, "", "raw"));
+
+        List<ExploreItem> result = exploreService.explore(1L, null, null, "불가", 9L, 1, null, true);
+
+        assertThat(result).extracting(ExploreItem::id).containsExactly("t3");
+    }
+
     // petId가 없을 때(반려동물 미등록 사용자 등)는 전부 확인필요라 기본 필터를 적용하면 항상 빈 목록이 되므로
     // 적용하지 않는다 - 개인화가 안 될 때는 전체 목록을 그대로 보여준다.
     @Test
@@ -307,6 +350,26 @@ class ExploreServiceTest {
 
         verify(tourService).search(null, null, null, null, null, null, 1);
         verify(facilityService).search("속초", null, 1);
+    }
+
+    // 2026-09-19: "광주전남" 가상 통합 지역 - 광주+전남 둘 다 조회해서 합쳐야 한다(TourAPI/KCISA 원본
+    // 데이터가 아직 통합 이전 지역 구분을 그대로 쓰고 있어서, 원본이 새 명칭을 쓰기 전까지의 대응).
+    @Test
+    void 광주전남_통합_지역은_광주와_전남_둘_다_조회해서_합친다() {
+        TourSummaryResponse gwangjuTour = new TourSummaryResponse("g1", "광주관광지", "광주광역시", "tel", "img", 1.0, 1.0);
+        TourSummaryResponse jeonnamTour = new TourSummaryResponse("j1", "전남관광지", "전라남도", "tel", "img", 2.0, 2.0);
+        FacilitySummaryResponse gwangjuFacility = new FacilitySummaryResponse("gf1", "광주시설", "광주광역시", "tel", 3.0, 3.0, null, null);
+        FacilitySummaryResponse jeonnamFacility = new FacilitySummaryResponse("jf1", "전남시설", "전라남도", "tel", 4.0, 4.0, null, null);
+
+        when(tourService.search("29", null, null, null, null, null, 1)).thenReturn(List.of(gwangjuTour));
+        when(tourService.search("46", null, null, null, null, null, 1)).thenReturn(List.of(jeonnamTour));
+        when(facilityService.search("광주광역시", null, 1)).thenReturn(List.of(gwangjuFacility));
+        when(facilityService.search("전라남도", null, 1)).thenReturn(List.of(jeonnamFacility));
+
+        List<ExploreItem> result = exploreService.explore(1L, "광주전남", null, null, null, 1);
+
+        assertThat(result).extracting(ExploreItem::id)
+                .containsExactlyInAnyOrder("g1", "j1", "gf1", "jf1");
     }
 
     @Test

@@ -6,6 +6,7 @@ import com.pawpass.global.util.GeoUtils;
 import com.pawpass.matching.dto.MatchResponse;
 import com.pawpass.matching.service.MatchingService;
 import com.pawpass.pet.domain.Pet;
+import com.pawpass.tour.dto.TourSummaryResponse;
 import com.pawpass.tour.service.TourService;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
@@ -94,12 +95,22 @@ public class ExploreService {
      * 원하는 장소가 안 보여서 오히려 못 찾는 역효과가 나므로, keyword 모드에서는 개인화 매칭은 그대로
      * 계산하되(정보 제공용) DEFAULT_VISIBLE_STATUSES 필터는 적용하지 않는다. matchStatus를 명시하면
      * (keyword와 함께 와도) 그 필터는 그대로 존중한다.
+     *
+     * showAll=true면(2026-09-19 추가, 프론트 목록 카드에 판정 뱃지를 전부 보여주고 싶다는 요청 - "가능만
+     * 필터링해서 보여주는 게 아니라 불가/확인필요까지 전부 뱃지로 구분해서 보여주고 싶다") keyword 모드와
+     * 똑같은 이유로 DEFAULT_VISIBLE_STATUSES 필터를 건너뛴다 - 개인화 매칭 계산 자체는 그대로 하되, 결과를
+     * 가능/조건부로 솎아내지 않고 전부 반환한다. matchStatus를 명시하면 이때도 그 필터가 우선한다.
      */
     public List<ExploreItem> explore(Long userId, String regionCode, String category, String matchStatus, Long petId, int page) {
-        return explore(userId, regionCode, category, matchStatus, petId, page, null);
+        return explore(userId, regionCode, category, matchStatus, petId, page, null, false);
     }
 
     public List<ExploreItem> explore(Long userId, String regionCode, String category, String matchStatus, Long petId, int page, String keyword) {
+        return explore(userId, regionCode, category, matchStatus, petId, page, keyword, false);
+    }
+
+    public List<ExploreItem> explore(Long userId, String regionCode, String category, String matchStatus, Long petId,
+                                      int page, String keyword, boolean showAll) {
         boolean keywordMode = keyword != null && !keyword.isBlank();
 
         List<ExploreItem> tourItems;
@@ -127,7 +138,7 @@ public class ExploreService {
                     .filter(item -> matchStatus.equals(item.matchStatus()))
                     .toList();
         }
-        if (personalized && !keywordMode) {
+        if (personalized && !keywordMode && !showAll) {
             return merged.stream()
                     .filter(item -> DEFAULT_VISIBLE_STATUSES.contains(item.matchStatus()))
                     .toList();
@@ -151,11 +162,12 @@ public class ExploreService {
      * 공통 지역명을 tour 쪽 규격(lDongRegnCd/lDongSignguCd)으로 바꿔서 조회한다.
      * 매핑 테이블에 없는 지역/카테고리는 ExploreConditionMapper가 필터 없음(Optional.empty)으로 돌려주므로
      * 자동으로 전체 조회에 가깝게 동작한다 - 값 하나 잘못 왔다고 빈 목록이 되진 않는다.
+     * "광주전남"(2026-09-19 추가) 같은 통합 가상 지역은 toTourRegions()가 지역 2개를 돌려주는데, 그 경우
+     * 이 메서드가 각각 조회해서 합친다 - 같은 관광지가 두 지역 조회 결과에 겹쳐 나올 일은 원래 없지만
+     * (하나의 좌표는 법정동코드 하나에만 속함) contentId 기준으로 한 번 더 방어적으로 중복 제거한다.
      */
     private List<ExploreItem> searchTourItems(String regionCode, String category, int page) {
-        ExploreConditionMapper.TourRegion region = ExploreConditionMapper.toTourRegion(regionCode).orElse(null);
-        String lDongRegnCd = region == null ? null : region.lDongRegnCd();
-        String lDongSignguCd = region == null ? null : region.lDongSignguCd();
+        List<ExploreConditionMapper.TourRegion> regions = ExploreConditionMapper.toTourRegions(regionCode);
         String contentTypeId = ExploreConditionMapper.toTourContentTypeId(category).orElse(null);
         // CAFE처럼 contentTypeId(39=음식점)만으로는 안 갈라지는 카테고리는 cat1/cat2/cat3까지 추가로 넘긴다
         // (그 외 카테고리는 전부 null이라 기존 동작과 동일) - ExploreConditionMapper 카테고리 주석 참고.
@@ -169,35 +181,54 @@ public class ExploreService {
         // 2026-09-13 추가 - "최대한 식당만 뜨게" 요청에 대한 보강. ExploreConditionMapper 주석 참고).
         boolean excludeCafeLikeNames = ExploreConditionMapper.shouldExcludeCafeLikeNames(category);
 
-        return tourService.search(lDongRegnCd, lDongSignguCd, contentTypeId, cat1, cat2, cat3, page).stream()
-                .filter(tour -> excludedCat3 == null || !excludedCat3.equals(tour.cat3()))
-                .filter(tour -> !excludeCafeLikeNames || !ExploreConditionMapper.looksLikeCafeByName(tour.title()))
-                .map(tour -> ExploreItem.fromTour(tour, DEFAULT_MATCH_STATUS))
-                .toList();
+        List<ExploreItem> merged = new ArrayList<>();
+        Set<String> seenContentIds = new HashSet<>();
+        for (ExploreConditionMapper.TourRegion region : regions) {
+            for (TourSummaryResponse tour : tourService.search(
+                    region.lDongRegnCd(), region.lDongSignguCd(), contentTypeId, cat1, cat2, cat3, page)) {
+                if (!seenContentIds.add(tour.contentId())) {
+                    continue;
+                }
+                if (excludedCat3 != null && excludedCat3.equals(tour.cat3())) {
+                    continue;
+                }
+                if (excludeCafeLikeNames && ExploreConditionMapper.looksLikeCafeByName(tour.title())) {
+                    continue;
+                }
+                merged.add(ExploreItem.fromTour(tour, DEFAULT_MATCH_STATUS));
+            }
+        }
+        return merged;
     }
 
     /**
      * facility는 카테고리가 1:N으로 매핑될 수 있어서(예: CULTURE -> 박물관/미술관/문예회관), 매핑된 category3
      * 값마다 기존 FacilityService.search()를 그대로 반복 호출해서 합친다 - FacilityService/Repository는
-     * 하나도 안 건드리고 어댑터 계층(여기)에서만 해결한다. 같은 시설이 여러 카테고리에 겹쳐 나올 일은 없지만
-     * (category3는 시설당 하나) id 기준으로 한 번 더 방어적으로 중복 제거한다.
+     * 하나도 안 건드리고 어댑터 계층(여기)에서만 해결한다. "광주전남"(2026-09-19 추가) 같은 통합 가상
+     * 지역은 toFacilityRegionKeywords()가 지역 키워드 2개를 돌려줘서, 지역×카테고리 조합마다 반복 호출한다.
+     * 같은 시설이 여러 조합에 겹쳐 나올 일은 없지만(주소 하나는 지역 키워드 하나에만, category3도 시설당
+     * 하나) id 기준으로 한 번 더 방어적으로 중복 제거한다.
      */
     private List<ExploreItem> searchFacilityItems(String regionCode, String category, int page) {
-        String regionKeyword = ExploreConditionMapper.toFacilityRegionKeyword(regionCode);
+        List<String> regionKeywords = ExploreConditionMapper.toFacilityRegionKeywords(regionCode);
         List<String> categoryValues = ExploreConditionMapper.toFacilityCategory3Values(category);
-
-        if (categoryValues.isEmpty()) {
-            return facilityService.search(regionKeyword, null, page).stream()
-                    .map(facility -> ExploreItem.fromFacility(facility, DEFAULT_MATCH_STATUS))
-                    .toList();
-        }
 
         List<ExploreItem> merged = new ArrayList<>();
         Set<String> seenIds = new HashSet<>();
-        for (String categoryValue : categoryValues) {
-            for (FacilitySummaryResponse facility : facilityService.search(regionKeyword, categoryValue, page)) {
-                if (seenIds.add(facility.id())) {
-                    merged.add(ExploreItem.fromFacility(facility, DEFAULT_MATCH_STATUS));
+        for (String regionKeyword : regionKeywords) {
+            if (categoryValues.isEmpty()) {
+                for (FacilitySummaryResponse facility : facilityService.search(regionKeyword, null, page)) {
+                    if (seenIds.add(facility.id())) {
+                        merged.add(ExploreItem.fromFacility(facility, DEFAULT_MATCH_STATUS));
+                    }
+                }
+                continue;
+            }
+            for (String categoryValue : categoryValues) {
+                for (FacilitySummaryResponse facility : facilityService.search(regionKeyword, categoryValue, page)) {
+                    if (seenIds.add(facility.id())) {
+                        merged.add(ExploreItem.fromFacility(facility, DEFAULT_MATCH_STATUS));
+                    }
                 }
             }
         }

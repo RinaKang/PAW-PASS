@@ -46,6 +46,45 @@ class ExploreConditionMapperTest {
         assertThat(ExploreConditionMapper.toFacilityRegionKeyword("")).isNull();
     }
 
+    // 2026-09-19: "광주"를 원문 그대로 주소 부분일치 키워드로 쓰면 광주광역시뿐 아니라 경기도 광주시까지
+    // 같이 걸린다(실측: regionCode=광주 결과 20건 중 1건이 "경기도 광주시") - 정식 전체 명칭으로 바꿔서
+    // 그 이름 충돌을 피한다.
+    @Test
+    void 광주는_경기도_광주시와_겹치지_않게_광주광역시로_바꿔서_돌려준다() {
+        assertThat(ExploreConditionMapper.toFacilityRegionKeyword("광주")).isEqualTo("광주광역시");
+        assertThat(ExploreConditionMapper.toFacilityRegionKeyword(" 광주 ")).isEqualTo("광주광역시");
+    }
+
+    // 2026-09-19: 2026-07-01 광주·전남 행정구역 통합 관련 프론트 요청 - TourAPI/KCISA 원본은 아직 통합
+    // 이전 지역 구분을 쓰므로(실측 확인), "광주전남" 가상 지역 코드를 받으면 광주+전남 둘 다 조회하도록
+    // 내부적으로 갈라준다.
+    @Test
+    void 광주전남은_광주와_전남_시도코드_둘_다로_매핑된다() {
+        List<ExploreConditionMapper.TourRegion> regions = ExploreConditionMapper.toTourRegions("광주전남");
+
+        assertThat(regions).extracting(ExploreConditionMapper.TourRegion::lDongRegnCd)
+                .containsExactlyInAnyOrder("29", "46");
+    }
+
+    @Test
+    void 광주전남은_광주광역시와_전라남도_키워드_둘_다로_매핑된다() {
+        List<String> keywords = ExploreConditionMapper.toFacilityRegionKeywords("광주전남");
+
+        assertThat(keywords).containsExactlyInAnyOrder("광주광역시", "전라남도");
+    }
+
+    // toTourRegions/toFacilityRegionKeywords(복수형)도 일반 지역은 기존 단수형 메서드와 동일한 결과를
+    // 1개짜리 리스트로 감싸서 돌려줘야 한다 - 매핑 안 된 지역(=필터 없음)도 포함해서 항상 최소 1개.
+    @Test
+    void 일반_지역은_toTourRegions_toFacilityRegionKeywords에서도_단수형과_동일하게_1개짜리_리스트다() {
+        assertThat(ExploreConditionMapper.toTourRegions("서울"))
+                .containsExactly(new ExploreConditionMapper.TourRegion("11", null));
+        assertThat(ExploreConditionMapper.toTourRegions("속초"))
+                .containsExactly(new ExploreConditionMapper.TourRegion(null, null));
+        assertThat(ExploreConditionMapper.toFacilityRegionKeywords("서울")).containsExactly("서울");
+        assertThat(ExploreConditionMapper.toFacilityRegionKeywords(null)).containsExactly((String) null);
+    }
+
     @Test
     void NATURE는_tour_12_facility_여행지로_매핑된다() {
         assertThat(ExploreConditionMapper.toTourContentTypeId("NATURE")).contains("12");

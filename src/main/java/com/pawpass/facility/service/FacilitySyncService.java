@@ -37,12 +37,7 @@ public class FacilitySyncService {
     // 현재 값(perPage=1000, ≈1.1MB)은 그 상한에서 충분히 여유 있어 그대로 유지.
     private static final int PAGE_SIZE = 1000;
 
-    // 한 페이지가 예상보다 일찍 빈 응답을 주면(진짜 끝이 아니라 일시적 API 문제일 수 있음) 이만큼 재시도한다
-    // (2026-09-19 추가 - 70,650여 건을 71페이지쯤 순회하는 도중 특정 실행에서 21,173건, 다른 실행에서
-    // 67,839건으로 결과가 들쭉날쭉했던 문제를 조사하다 발견함. 예전엔 "items가 비어있으면 끝났다"고
-    // 단정해서 조기 종료했는데, 실제로는 totalCount에 한참 못 미친 페이지에서 빈 응답을 받아도 그대로
-    // 정상 종료처럼 로그를 찍고 끝나버렸다 - 원본 API 자체가 이따금 특정 페이지에서 빈 응답을 주는 것으로
-    // 보임(perPage=3900↑에서 나던 것과 같은 부류의 현상이 perPage=1000에서도 드물게 재현되는 듯).
+
     private static final int MAX_EMPTY_PAGE_RETRIES = 3;
     private static final long EMPTY_PAGE_RETRY_DELAY_MS = 2000;
 
