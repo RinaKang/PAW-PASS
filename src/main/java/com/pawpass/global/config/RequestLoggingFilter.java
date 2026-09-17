@@ -25,6 +25,11 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
         filterChain.doFilter(request, response);
-        log.info(">> {} {} -> {}", request.getMethod(), request.getRequestURI(), response.getStatus());
+        // 2026-09-17: getRequestURI()는 경로만 찍고 쿼리스트링은 빠뜨려서, "GET /explore -> 400"처럼
+        // 어떤 파라미터로 실패했는지 로그만으로는 알 수 없는 문제가 실제로 있었다 - getQueryString()도
+        // 같이 남긴다(쿼리 없는 요청이면 null이라 물음표는 생략).
+        String queryString = request.getQueryString();
+        String uri = queryString == null ? request.getRequestURI() : request.getRequestURI() + "?" + queryString;
+        log.info(">> {} {} -> {}", request.getMethod(), uri, response.getStatus());
     }
 }

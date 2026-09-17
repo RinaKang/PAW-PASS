@@ -19,6 +19,9 @@ import java.util.List;
  * 검색하며, 이 모드에서는 가능/조건부 기본 필터도 적용하지 않는다(찾는 장소가 걸러지면 안 되므로).
  * showAll=true면(2026-09-19 추가) 개인화 매칭은 그대로 계산하되 가능/조건부 기본 필터를 적용하지 않고
  * 전부 반환한다 - 목록 카드에 불가/확인필요까지 뱃지로 다 보여주고 싶을 때 쓴다.
+ * petIds(2026-09-19 추가, 다견 AND 판정)를 넘기면 petId 대신 그 목록으로 개인화한다 - 콤마로 구분한 값
+ * (petIds=1,2,3)과 반복 파라미터(petIds=1&petIds=2) 둘 다 지원한다. 선택된 반려동물 전부가 함께 이용
+ * 가능해야 "가능"으로 뜬다. petIds와 petId를 둘 다 넘기면 petIds가 우선한다.
  */
 @RestController
 @RequiredArgsConstructor
@@ -35,8 +38,9 @@ public class ExploreController {
             @RequestParam(required = false) Long petId,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(required = false) String keyword,
-            @RequestParam(defaultValue = "false") boolean showAll
+            @RequestParam(defaultValue = "false") boolean showAll,
+            @RequestParam(required = false) List<Long> petIds
     ) {
-        return ApiResponse.success(exploreService.explore(userId, regionCode, category, matchStatus, petId, page, keyword, showAll));
+        return ApiResponse.success(exploreService.explore(userId, regionCode, category, matchStatus, petId, page, keyword, showAll, petIds));
     }
 }

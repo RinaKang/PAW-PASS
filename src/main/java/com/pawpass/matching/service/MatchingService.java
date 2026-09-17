@@ -15,6 +15,7 @@ import com.pawpass.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -34,6 +35,11 @@ public class MatchingService {
 
     private static final double CONFIDENCE_THRESHOLD = 0.5;
 
+    /** 다견 AND 판정에서 하나라도 이 순서로 걸리면 그 상태가 전체 결과를 결정한다(최악 우선). */
+    private static final List<String> STATUS_PRIORITY = List.of(
+            MatchResponse.STATUS_DENIED, MatchResponse.STATUS_UNKNOWN, MatchResponse.STATUS_CONDITIONAL
+    );
+
     private final PetRepository petRepository;
     private final UserRepository userRepository;
     private final TourService tourService;
@@ -41,13 +47,22 @@ public class MatchingService {
     private final PetConditionAiParser petConditionAiParser;
 
     public MatchResponse matchTour(Long userId, String contentId, Long petId) {
-        Pet pet = requirePetForMatch(userId, petId);
-        return matchTourForPet(pet, contentId);
+        return matchTour(userId, contentId, petId == null ? List.of() : List.of(petId));
+    }
+
+    /** petIds가 2개 이상이면(2026-09-19 추가, 다견 AND 판정) 전체가 함께 이용 가능한지를 판정한다. */
+    public MatchResponse matchTour(Long userId, String contentId, List<Long> petIds) {
+        List<Pet> pets = requirePetsForMatch(userId, petIds);
+        return matchTourForPets(pets, contentId);
     }
 
     public MatchResponse matchFacility(Long userId, String id, Long petId) {
-        Pet pet = requirePetForMatch(userId, petId);
-        return matchFacilityForPet(pet, id);
+        return matchFacility(userId, id, petId == null ? List.of() : List.of(petId));
+    }
+
+    public MatchResponse matchFacility(Long userId, String id, List<Long> petIds) {
+        List<Pet> pets = requirePetsForMatch(userId, petIds);
+        return matchFacilityForPets(pets, id);
     }
 
     /**
@@ -55,6 +70,10 @@ public class MatchingService {
      * (항목마다 DB에서 Pet을 다시 조회하지 않도록 소유권 확인과 판정을 분리).
      */
     public MatchResponse matchTourForPet(Pet pet, String contentId) {
+        return matchTourForPets(List.of(pet), contentId);
+    }
+
+    public MatchResponse matchTourForPets(List<Pet> pets, String contentId) {
         TourDetailResponse detail = tourService.getDetail(contentId);
         String rawText = joinNonBlank(
                 detail.petCondition().acmpyTypeCd(),
@@ -62,10 +81,14 @@ public class MatchingService {
                 detail.petCondition().acmpyNeedMtr(),
                 detail.petCondition().etcAcmpyInfo()
         );
-        return judge(rawText, pet);
+        return judge(rawText, pets);
     }
 
     public MatchResponse matchFacilityForPet(Pet pet, String id) {
+        return matchFacilityForPets(List.of(pet), id);
+    }
+
+    public MatchResponse matchFacilityForPets(List<Pet> pets, String id) {
         FacilityDetailResponse.PetCondition condition = facilityService.getDetail(id).petCondition();
         String rawText = joinNonBlank(
                 condition.petRestriction(),
@@ -73,7 +96,7 @@ public class MatchingService {
                 condition.petExclusive(),
                 condition.additionalPetFee()
         );
-        return judge(rawText, pet);
+        return judge(rawText, pets);
     }
 
     public Pet requireOwnedPet(Long userId, Long petId) {
@@ -87,14 +110,19 @@ public class MatchingService {
      * "먼저 선택해주세요"를 안내한다 - 매칭은 특정 펫 없이는 의미가 없는 기능이라 조용히 넘어가지 않는다.
      */
     public Pet requirePetForMatch(Long userId, Long petId) {
-        if (petId != null) {
-            return requireOwnedPet(userId, petId);
+        return requirePetsForMatch(userId, petId == null ? List.of() : List.of(petId)).get(0);
+    }
+
+    /** petIds가 비어 있으면 petId 없을 때와 동일하게 대표 반려동물 1마리로 대체한다. */
+    public List<Pet> requirePetsForMatch(Long userId, List<Long> petIds) {
+        if (petIds != null && !petIds.isEmpty()) {
+            return petIds.stream().map(petId -> requireOwnedPet(userId, petId)).toList();
         }
         Long primaryPetId = findPrimaryPetId(userId);
         if (primaryPetId == null) {
             throw new IllegalArgumentException("매칭할 반려동물을 먼저 선택해주세요.");
         }
-        return requireOwnedPet(userId, primaryPetId);
+        return List.of(requireOwnedPet(userId, primaryPetId));
     }
 
     /**
@@ -103,28 +131,55 @@ public class MatchingService {
      * userId가 null이면(비로그인 브라우징) 바로 null - 대표 반려동물 조회 자체를 시도하지 않는다.
      */
     public Pet resolveOptionalPet(Long userId, Long petId) {
+        List<Pet> pets = resolveOptionalPets(userId, petId == null ? List.of() : List.of(petId));
+        return pets.isEmpty() ? null : pets.get(0);
+    }
+
+    public List<Pet> resolveOptionalPets(Long userId, List<Long> petIds) {
         if (userId == null) {
-            return null;
+            return List.of();
         }
-        if (petId != null) {
-            return requireOwnedPet(userId, petId);
+        if (petIds != null && !petIds.isEmpty()) {
+            return petIds.stream().map(petId -> requireOwnedPet(userId, petId)).toList();
         }
         Long primaryPetId = findPrimaryPetId(userId);
-        return primaryPetId == null ? null : requireOwnedPet(userId, primaryPetId);
+        return primaryPetId == null ? List.of() : List.of(requireOwnedPet(userId, primaryPetId));
     }
 
     private Long findPrimaryPetId(Long userId) {
         return userRepository.findById(userId).map(User::getPrimaryPetId).orElse(null);
     }
 
-    private MatchResponse judge(String rawText, Pet pet) {
+    private MatchResponse judge(String rawText, List<Pet> pets) {
         Optional<MatchResponse> immediate = RuleBasedConditionJudge.judge(rawText);
         if (immediate.isPresent()) {
+            // 확인필요(원문 없음)/전면 불가/무조건 가능은 펫의 몸무게·크기와 무관하게 결정되는 판정이라
+            // 선택된 펫이 몇 마리든 동일하게 적용된다 - 펫별로 다시 계산할 필요가 없다.
             return immediate.get();
         }
         ParsedCondition parsed = RuleBasedConditionJudge.tryExtractStructured(rawText)
                 .orElseGet(() -> petConditionAiParser.parse(rawText));
-        return toMatchResponse(parsed, pet, rawText);
+        List<MatchResponse> perPet = pets.stream().map(pet -> toMatchResponse(parsed, pet, rawText)).toList();
+        return combine(perPet, pets, rawText);
+    }
+
+    /**
+     * 펫이 1마리면 기존 단일 펫 판정과 완전히 동일한 결과를 그대로 반환한다(하위 호환).
+     * 2마리 이상이면 전체가 함께 이용 가능해야 하므로 AND로 합친다 - 가장 제한적인 상태(불가 > 확인필요 >
+     * 조건부 > 가능 순)가 전체 결과가 되고, 그 원인이 된 반려동물 이름을 사유 앞에 붙인다.
+     */
+    private MatchResponse combine(List<MatchResponse> perPet, List<Pet> pets, String rawText) {
+        if (perPet.size() == 1) {
+            return perPet.get(0);
+        }
+        for (String status : STATUS_PRIORITY) {
+            for (int i = 0; i < perPet.size(); i++) {
+                if (status.equals(perPet.get(i).status())) {
+                    return new MatchResponse(status, pets.get(i).getName() + ": " + perPet.get(i).reason(), rawText);
+                }
+            }
+        }
+        return new MatchResponse(MatchResponse.STATUS_ALLOWED, "선택하신 반려동물 모두 함께 이용 가능합니다.", rawText);
     }
 
     /** parsed가 규칙 기반 추출이든 AI든 상관없이 동일한 후처리(신뢰도/크기 대조/허용-불가 분기)를 적용한다. */

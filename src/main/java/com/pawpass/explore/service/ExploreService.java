@@ -100,6 +100,9 @@ public class ExploreService {
      * 필터링해서 보여주는 게 아니라 불가/확인필요까지 전부 뱃지로 구분해서 보여주고 싶다") keyword 모드와
      * 똑같은 이유로 DEFAULT_VISIBLE_STATUSES 필터를 건너뛴다 - 개인화 매칭 계산 자체는 그대로 하되, 결과를
      * 가능/조건부로 솎아내지 않고 전부 반환한다. matchStatus를 명시하면 이때도 그 필터가 우선한다.
+     *
+     * petIds(2026-09-19 추가, 다견 AND 판정)를 넘기면 petId 대신 그 목록으로 개인화한다 - 선택된 반려동물
+     * 전부가 함께 이용 가능해야 "가능"으로 뜬다(MatchingService.combine 참고). 둘 다 넘기면 petIds가 우선.
      */
     public List<ExploreItem> explore(Long userId, String regionCode, String category, String matchStatus, Long petId, int page) {
         return explore(userId, regionCode, category, matchStatus, petId, page, null, false);
@@ -111,6 +114,11 @@ public class ExploreService {
 
     public List<ExploreItem> explore(Long userId, String regionCode, String category, String matchStatus, Long petId,
                                       int page, String keyword, boolean showAll) {
+        return explore(userId, regionCode, category, matchStatus, petId, page, keyword, showAll, List.of());
+    }
+
+    public List<ExploreItem> explore(Long userId, String regionCode, String category, String matchStatus, Long petId,
+                                      int page, String keyword, boolean showAll, List<Long> petIds) {
         boolean keywordMode = keyword != null && !keyword.isBlank();
 
         List<ExploreItem> tourItems;
@@ -127,10 +135,12 @@ public class ExploreService {
 
         List<ExploreItem> merged = mergeTourApiFirst(tourItems, facilityItems);
 
-        Pet pet = matchingService.resolveOptionalPet(userId, petId);
-        boolean personalized = pet != null;
+        List<Long> effectivePetIds = (petIds != null && !petIds.isEmpty()) ? petIds
+                : (petId == null ? List.of() : List.of(petId));
+        List<Pet> pets = matchingService.resolveOptionalPets(userId, effectivePetIds);
+        boolean personalized = !pets.isEmpty();
         if (personalized) {
-            merged = computeMatchStatuses(merged, pet);
+            merged = computeMatchStatuses(merged, pets);
         }
 
         if (matchStatus != null && !matchStatus.isBlank()) {
@@ -244,7 +254,7 @@ public class ExploreService {
      * tour 항목은 MAX_TOUR_ITEMS_TO_MATCH개까지만 실제로 매칭을 시도한다 - 원래 순서(tour 먼저)는
      * 그대로 유지하고, 상한을 넘긴 tour 항목만 매칭 자체를 건너뛴다(기본값 그대로).
      */
-    private List<ExploreItem> computeMatchStatuses(List<ExploreItem> items, Pet pet) {
+    private List<ExploreItem> computeMatchStatuses(List<ExploreItem> items, List<Pet> pets) {
         int[] remainingTourBudget = {MAX_TOUR_ITEMS_TO_MATCH};
         List<CompletableFuture<ExploreItem>> futures = items.stream()
                 .map(item -> {
@@ -253,17 +263,17 @@ public class ExploreService {
                     if (!withinBudget) {
                         return CompletableFuture.completedFuture(item); // 기본값("확인필요") 그대로, 매칭 시도 안 함
                     }
-                    return CompletableFuture.supplyAsync(() -> computeOne(item, pet), matchExecutor);
+                    return CompletableFuture.supplyAsync(() -> computeOne(item, pets), matchExecutor);
                 })
                 .toList();
         return futures.stream().map(CompletableFuture::join).toList();
     }
 
-    private ExploreItem computeOne(ExploreItem item, Pet pet) {
+    private ExploreItem computeOne(ExploreItem item, List<Pet> pets) {
         try {
             MatchResponse match = "tourapi".equals(item.source())
-                    ? matchingService.matchTourForPet(pet, item.id())
-                    : matchingService.matchFacilityForPet(pet, item.id());
+                    ? matchingService.matchTourForPets(pets, item.id())
+                    : matchingService.matchFacilityForPets(pets, item.id());
             return item.withMatch(match);
         } catch (Exception e) {
             log.warn("항목 매칭 계산 실패 - 확인필요로 대체함: source={}, id={}, error={}",

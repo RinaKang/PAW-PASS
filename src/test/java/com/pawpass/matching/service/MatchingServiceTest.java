@@ -250,6 +250,59 @@ class MatchingServiceTest {
         assertThat(result.status()).isEqualTo(MatchResponse.STATUS_DENIED);
     }
 
+    // 2026-09-19: petIds(다견 AND 판정) - 원문은 한 번만 파싱하고, 선택된 펫 각각의 몸무게/크기와 대조한다.
+    @Test
+    void petIds를_여러개_넘기면_전부_소유권을_확인해서_판정에_쓴다() {
+        when(petRepository.findByIdAndUserId(1L, 1L)).thenReturn(Optional.of(OWNED_PET));
+        when(petRepository.findByIdAndUserId(2L, 1L)).thenReturn(Optional.of(LARGE_PET));
+        when(tourService.getDetail("123")).thenReturn(tourDetail("실내는 케이지 동반 시에만 이용 가능합니다."));
+        when(petConditionAiParser.parse(anyString()))
+                .thenReturn(new PetConditionAiParser.ParsedCondition(true, false, null, null, "", "", 0.9));
+
+        MatchResponse result = matchingService.matchTour(1L, "123", java.util.List.of(1L, 2L));
+
+        assertThat(result.status()).isEqualTo(MatchResponse.STATUS_ALLOWED);
+    }
+
+    @Test
+    void 여러_마리_중_한_마리라도_크기_기준을_초과하면_그_반려동물_이름과_함께_불가() {
+        when(petRepository.findByIdAndUserId(1L, 1L)).thenReturn(Optional.of(OWNED_PET)); // SMALL, 통과
+        when(petRepository.findByIdAndUserId(2L, 1L)).thenReturn(Optional.of(LARGE_PET)); // LARGE, 초과
+        when(tourService.getDetail("123")).thenReturn(tourDetail("작은 강아지들만 함께하실 수 있어요."));
+        when(petConditionAiParser.parse(anyString()))
+                .thenReturn(new PetConditionAiParser.ParsedCondition(true, false, null, "SMALL", "", "소형견만 가능", 0.9));
+
+        MatchResponse result = matchingService.matchTour(1L, "123", java.util.List.of(1L, 2L));
+
+        assertThat(result.status()).isEqualTo(MatchResponse.STATUS_DENIED);
+        assertThat(result.reason()).contains(LARGE_PET.getName());
+    }
+
+    // 전면 불가/무조건 가능처럼 펫과 무관하게 결정되는 판정(RuleBasedConditionJudge.judge)은 펫이 몇 마리든
+    // 원문 파싱 한 번으로 끝나야 한다 - AI를 다시 호출하지 않는 게 비용 절감의 핵심이다.
+    @Test
+    void 전면_불가처럼_펫과_무관한_판정은_여러_마리여도_AI를_호출하지_않는다() {
+        when(petRepository.findByIdAndUserId(1L, 1L)).thenReturn(Optional.of(OWNED_PET));
+        when(petRepository.findByIdAndUserId(2L, 1L)).thenReturn(Optional.of(LARGE_PET));
+        when(tourService.getDetail("123")).thenReturn(tourDetail("반려동물 동반 불가 시설입니다."));
+
+        MatchResponse result = matchingService.matchTour(1L, "123", java.util.List.of(1L, 2L));
+
+        assertThat(result.status()).isEqualTo(MatchResponse.STATUS_DENIED);
+        verify(petConditionAiParser, never()).parse(anyString());
+    }
+
+    @Test
+    void petIds가_비어있으면_petId_없을때와_동일하게_대표_반려동물로_대체한다() {
+        User user = userWithPrimaryPet(5L);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(petRepository.findByIdAndUserId(5L, 1L)).thenReturn(Optional.of(OWNED_PET));
+
+        java.util.List<Pet> result = matchingService.requirePetsForMatch(1L, java.util.List.of());
+
+        assertThat(result).containsExactly(OWNED_PET);
+    }
+
     private TourDetailResponse tourDetail(String etcAcmpyInfo) {
         return new TourDetailResponse(
                 "123", "제목", "주소", "tel", "hours", java.util.List.of(),
