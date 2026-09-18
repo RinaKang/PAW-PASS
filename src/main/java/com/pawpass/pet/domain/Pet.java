@@ -6,6 +6,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
@@ -32,6 +33,10 @@ public class Pet {
 
     @Column(nullable = false)
     private Double weight; // kg
+
+    // 프론트 폼에 입력란은 있었지만 대응 컬럼이 없어서 값이 저장되지 않던 필드.
+    @Column(name = "birth_date")
+    private LocalDate birthDate;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 10)
@@ -64,14 +69,15 @@ public class Pet {
     private String imageUrl;
 
     @Builder
-    public Pet(Long userId, String name, String species, String breed, Double weight, PetSize size,
-               boolean hasCarrier, boolean hasLeash, boolean hasMuzzle, boolean hasWasteBags,
+    public Pet(Long userId, String name, String species, String breed, Double weight, LocalDate birthDate,
+               PetSize size, boolean hasCarrier, boolean hasLeash, boolean hasMuzzle, boolean hasWasteBags,
                boolean hasStroller, boolean hasDiaper) {
         this.userId = userId;
         this.name = name;
         this.species = species;
         this.breed = breed;
         this.weight = weight;
+        this.birthDate = birthDate;
         this.size = size;
         this.hasCarrier = hasCarrier;
         this.hasLeash = hasLeash;
@@ -86,13 +92,14 @@ public class Pet {
         this.createdAt = LocalDateTime.now();
     }
 
-    public void update(String name, String species, String breed, Double weight, PetSize size,
+    public void update(String name, String species, String breed, Double weight, LocalDate birthDate, PetSize size,
                         Boolean hasCarrier, Boolean hasLeash, Boolean hasMuzzle, Boolean hasWasteBags,
                         Boolean hasStroller, Boolean hasDiaper) {
         if (name != null) this.name = name;
         if (species != null) this.species = species;
         if (breed != null) this.breed = breed;
         if (weight != null) this.weight = weight;
+        if (birthDate != null) this.birthDate = birthDate;
         if (size != null) this.size = size;
         if (hasCarrier != null) this.hasCarrier = hasCarrier;
         if (hasLeash != null) this.hasLeash = hasLeash;

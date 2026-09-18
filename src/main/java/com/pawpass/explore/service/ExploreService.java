@@ -272,7 +272,7 @@ public class ExploreService {
     private ExploreItem computeOne(ExploreItem item, List<Pet> pets) {
         try {
             MatchResponse match = "tourapi".equals(item.source())
-                    ? matchingService.matchTourForPets(pets, item.id())
+                    ? matchingService.matchTourForPetsLightweight(pets, item.id())
                     : matchingService.matchFacilityForPets(pets, item.id());
             return item.withMatch(match);
         } catch (Exception e) {

@@ -154,7 +154,7 @@ class ExploreServiceTest {
         when(tourService.search(null, null, null, null, null, null, 1)).thenReturn(List.of(tour));
         when(facilityService.search(null, null, 1)).thenReturn(List.of(facility));
         when(matchingService.resolveOptionalPets(1L, List.of(9L))).thenReturn(List.of(PET));
-        when(matchingService.matchTourForPets(List.of(PET), "t1"))
+        when(matchingService.matchTourForPetsLightweight(List.of(PET), "t1"))
                 .thenReturn(new MatchResponse(MatchResponse.STATUS_ALLOWED, "가능합니다", "raw"));
         when(matchingService.matchFacilityForPets(List.of(PET), "f1"))
                 .thenReturn(new MatchResponse(MatchResponse.STATUS_DENIED, "불가합니다", "raw"));
@@ -173,7 +173,7 @@ class ExploreServiceTest {
         when(tourService.search(null, null, null, null, null, null, 1)).thenReturn(List.of(tour));
         when(facilityService.search(null, null, 1)).thenReturn(List.of());
         when(matchingService.resolveOptionalPets(1L, List.of(9L))).thenReturn(List.of(PET));
-        when(matchingService.matchTourForPets(List.of(PET), "t1"))
+        when(matchingService.matchTourForPetsLightweight(List.of(PET), "t1"))
                 .thenReturn(new MatchResponse(MatchResponse.STATUS_CONDITIONAL, "목줄 착용 필수", "실내 동반 가능, 목줄 착용 필수"));
 
         List<ExploreItem> result = exploreService.explore(1L, null, null, "조건부", 9L, 1);
@@ -193,13 +193,13 @@ class ExploreServiceTest {
         when(tourService.search(null, null, null, null, null, null, 1)).thenReturn(List.of(allowed, conditional, denied, unknown));
         when(facilityService.search(null, null, 1)).thenReturn(List.of());
         when(matchingService.resolveOptionalPets(1L, List.of(9L))).thenReturn(List.of(PET));
-        when(matchingService.matchTourForPets(List.of(PET), "t1"))
+        when(matchingService.matchTourForPetsLightweight(List.of(PET), "t1"))
                 .thenReturn(new MatchResponse(MatchResponse.STATUS_ALLOWED, "", "raw"));
-        when(matchingService.matchTourForPets(List.of(PET), "t2"))
+        when(matchingService.matchTourForPetsLightweight(List.of(PET), "t2"))
                 .thenReturn(new MatchResponse(MatchResponse.STATUS_CONDITIONAL, "", "raw"));
-        when(matchingService.matchTourForPets(List.of(PET), "t3"))
+        when(matchingService.matchTourForPetsLightweight(List.of(PET), "t3"))
                 .thenReturn(new MatchResponse(MatchResponse.STATUS_DENIED, "", "raw"));
-        when(matchingService.matchTourForPets(List.of(PET), "t4"))
+        when(matchingService.matchTourForPetsLightweight(List.of(PET), "t4"))
                 .thenReturn(new MatchResponse(MatchResponse.STATUS_UNKNOWN, "", "raw"));
 
         List<ExploreItem> result = exploreService.explore(1L, null, null, null, 9L, 1);
@@ -218,9 +218,9 @@ class ExploreServiceTest {
         when(tourService.search(null, null, null, null, null, null, 1)).thenReturn(List.of(allowed, denied));
         when(facilityService.search(null, null, 1)).thenReturn(List.of());
         when(matchingService.resolveOptionalPets(1L, List.of(9L))).thenReturn(List.of(PET));
-        when(matchingService.matchTourForPets(List.of(PET), "t1"))
+        when(matchingService.matchTourForPetsLightweight(List.of(PET), "t1"))
                 .thenReturn(new MatchResponse(MatchResponse.STATUS_ALLOWED, "", "raw"));
-        when(matchingService.matchTourForPets(List.of(PET), "t3"))
+        when(matchingService.matchTourForPetsLightweight(List.of(PET), "t3"))
                 .thenReturn(new MatchResponse(MatchResponse.STATUS_DENIED, "", "raw"));
 
         List<ExploreItem> result = exploreService.explore(1L, null, null, null, 9L, 1, null, true);
@@ -241,9 +241,9 @@ class ExploreServiceTest {
         when(tourService.search(null, null, null, null, null, null, 1)).thenReturn(List.of(allowed, denied));
         when(facilityService.search(null, null, 1)).thenReturn(List.of());
         when(matchingService.resolveOptionalPets(1L, List.of(9L))).thenReturn(List.of(PET));
-        when(matchingService.matchTourForPets(List.of(PET), "t1"))
+        when(matchingService.matchTourForPetsLightweight(List.of(PET), "t1"))
                 .thenReturn(new MatchResponse(MatchResponse.STATUS_ALLOWED, "", "raw"));
-        when(matchingService.matchTourForPets(List.of(PET), "t3"))
+        when(matchingService.matchTourForPetsLightweight(List.of(PET), "t3"))
                 .thenReturn(new MatchResponse(MatchResponse.STATUS_DENIED, "", "raw"));
 
         List<ExploreItem> result = exploreService.explore(1L, null, null, "불가", 9L, 1, null, true);
@@ -273,9 +273,9 @@ class ExploreServiceTest {
         when(tourService.search(null, null, null, null, null, null, 1)).thenReturn(List.of(tourOk, tourFails));
         when(facilityService.search(null, null, 1)).thenReturn(List.of());
         when(matchingService.resolveOptionalPets(1L, List.of(9L))).thenReturn(List.of(PET));
-        when(matchingService.matchTourForPets(List.of(PET), "t1"))
+        when(matchingService.matchTourForPetsLightweight(List.of(PET), "t1"))
                 .thenReturn(new MatchResponse(MatchResponse.STATUS_ALLOWED, "가능합니다", "raw"));
-        when(matchingService.matchTourForPets(List.of(PET), "t2"))
+        when(matchingService.matchTourForPetsLightweight(List.of(PET), "t2"))
                 .thenThrow(new RuntimeException("Gemini 429 등 외부 호출 실패 시뮬레이션"));
 
         // 기본 필터: 실패해서 확인필요로 대체된 t2는 안 보이고, 정상 계산된 t1(가능)만 보인다
@@ -302,7 +302,7 @@ class ExploreServiceTest {
         when(tourService.search(null, null, null, null, null, null, 1)).thenReturn(tours);
         when(facilityService.search(null, null, 1)).thenReturn(List.of(facility));
         when(matchingService.resolveOptionalPets(1L, List.of(9L))).thenReturn(List.of(PET));
-        when(matchingService.matchTourForPets(eq(List.of(PET)), anyString()))
+        when(matchingService.matchTourForPetsLightweight(eq(List.of(PET)), anyString()))
                 .thenReturn(new MatchResponse(MatchResponse.STATUS_ALLOWED, "", "raw"));
         when(matchingService.matchFacilityForPets(List.of(PET), "f1"))
                 .thenReturn(new MatchResponse(MatchResponse.STATUS_ALLOWED, "", "raw"));
@@ -312,9 +312,9 @@ class ExploreServiceTest {
         // 상한을 넘겨 매칭을 아예 안 시도한 tour 항목들만 기본값("확인필요")으로 남아 이 필터에 걸린다
         assertThat(result).hasSize(2);
         assertThat(result).extracting(ExploreItem::id).containsExactlyInAnyOrder("t11", "t12");
-        verify(matchingService, org.mockito.Mockito.times(10)).matchTourForPets(eq(List.of(PET)), anyString());
-        verify(matchingService, never()).matchTourForPets(List.of(PET), "t11");
-        verify(matchingService, never()).matchTourForPets(List.of(PET), "t12");
+        verify(matchingService, org.mockito.Mockito.times(10)).matchTourForPetsLightweight(eq(List.of(PET)), anyString());
+        verify(matchingService, never()).matchTourForPetsLightweight(List.of(PET), "t11");
+        verify(matchingService, never()).matchTourForPetsLightweight(List.of(PET), "t12");
     }
 
     // ===== 공통 region/category 값을 tour/facility 각자의 규격으로 변환하는지 =====
@@ -501,7 +501,7 @@ class ExploreServiceTest {
         when(tourService.searchByKeyword("찾는곳", 1)).thenReturn(List.of(tour));
         when(facilityService.searchByKeyword("찾는곳", 1)).thenReturn(List.of());
         when(matchingService.resolveOptionalPets(1L, List.of(9L))).thenReturn(List.of(PET));
-        when(matchingService.matchTourForPets(List.of(PET), "t1"))
+        when(matchingService.matchTourForPetsLightweight(List.of(PET), "t1"))
                 .thenReturn(new MatchResponse(MatchResponse.STATUS_DENIED, "불가합니다", "raw"));
 
         List<ExploreItem> result = exploreService.explore(1L, null, null, null, 9L, 1, "찾는곳");
@@ -516,7 +516,7 @@ class ExploreServiceTest {
         when(tourService.searchByKeyword("찾는곳", 1)).thenReturn(List.of(tour));
         when(facilityService.searchByKeyword("찾는곳", 1)).thenReturn(List.of());
         when(matchingService.resolveOptionalPets(1L, List.of(9L))).thenReturn(List.of(PET));
-        when(matchingService.matchTourForPets(List.of(PET), "t1"))
+        when(matchingService.matchTourForPetsLightweight(List.of(PET), "t1"))
                 .thenReturn(new MatchResponse(MatchResponse.STATUS_DENIED, "불가합니다", "raw"));
 
         List<ExploreItem> result = exploreService.explore(1L, null, null, "가능", 9L, 1, "찾는곳");

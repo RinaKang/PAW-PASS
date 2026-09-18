@@ -75,13 +75,26 @@ public class MatchingService {
 
     public MatchResponse matchTourForPets(List<Pet> pets, String contentId) {
         TourDetailResponse detail = tourService.getDetail(contentId);
-        String rawText = joinNonBlank(
-                detail.petCondition().acmpyTypeCd(),
-                detail.petCondition().acmpyPsblCpam(),
-                detail.petCondition().acmpyNeedMtr(),
-                detail.petCondition().etcAcmpyInfo()
+        return judge(tourRawText(detail.petCondition()), pets);
+    }
+
+    /**
+     * /explore 목록 매칭 전용- TourService.getPetCondition() 참고. 항목당 TourAPI
+     * 호출을 4번(getDetail)에서 1번으로 줄여서 일일 호출 한도(1000건) 소진 속도를 낮춘다. matchTourForPets와
+     * 결과(rawText 내용)는 완전히 동일하고, 존재하지 않는 contentId에 대한 검증만 빠진다
+     */
+    public MatchResponse matchTourForPetsLightweight(List<Pet> pets, String contentId) {
+        TourDetailResponse.PetCondition condition = tourService.getPetCondition(contentId);
+        return judge(tourRawText(condition), pets);
+    }
+
+    private String tourRawText(TourDetailResponse.PetCondition condition) {
+        return joinNonBlank(
+                condition.acmpyTypeCd(),
+                condition.acmpyPsblCpam(),
+                condition.acmpyNeedMtr(),
+                condition.etcAcmpyInfo()
         );
-        return judge(rawText, pets);
     }
 
     public MatchResponse matchFacilityForPet(Pet pet, String id) {

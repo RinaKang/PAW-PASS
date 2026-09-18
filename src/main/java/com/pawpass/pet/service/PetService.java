@@ -38,6 +38,7 @@ public class PetService {
                 .species(request.species())
                 .breed(request.breed())
                 .weight(request.weight())
+                .birthDate(request.birthDate())
                 .size(request.size())
                 .hasCarrier(Boolean.TRUE.equals(request.hasCarrier()))
                 .hasLeash(Boolean.TRUE.equals(request.hasLeash()))
@@ -67,9 +68,9 @@ public class PetService {
     public PetResponse update(Long userId, Long id, PetRequest request) {
         Pet pet = petRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 반려동물입니다: " + id));
-        pet.update(request.name(), request.species(), request.breed(), request.weight(), request.size(),
-                request.hasCarrier(), request.hasLeash(), request.hasMuzzle(), request.hasWasteBags(),
-                request.hasStroller(), request.hasDiaper());
+        pet.update(request.name(), request.species(), request.breed(), request.weight(), request.birthDate(),
+                request.size(), request.hasCarrier(), request.hasLeash(), request.hasMuzzle(),
+                request.hasWasteBags(), request.hasStroller(), request.hasDiaper());
         Long primaryPetId = requireUser(userId).getPrimaryPetId();
         return PetResponse.from(pet, id.equals(primaryPetId));
     }

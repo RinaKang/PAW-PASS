@@ -90,6 +90,12 @@ public class TourService {
         return TourDetailResponse.of(common, intro, pet, images);
     }
 
+    
+    public TourDetailResponse.PetCondition getPetCondition(String contentId) {
+        TourDetailPetTourItem pet = tourApiClient.detailPetTour(contentId);
+        return TourDetailResponse.PetCondition.from(pet);
+    }
+
     /**
      * favorite/trip 목록 조인처럼 title/addr만 필요한 곳에서 쓴다.
      * getDetail()과 달리 detailCommon2 한 번만 호출한다 (intro/petTour까지 부를 필요가 없어 API 호출을 아낌).

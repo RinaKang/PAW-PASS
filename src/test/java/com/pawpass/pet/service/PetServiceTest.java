@@ -67,7 +67,7 @@ class PetServiceTest {
     @Test
     void 등록시_구비용품_필드가_전부_반영된다() {
         init();
-        PetRequest request = new PetRequest("초코", "강아지", "말티즈", 3.0, PetSize.SMALL,
+        PetRequest request = new PetRequest("초코", "강아지", "말티즈", 3.0, null, PetSize.SMALL,
                 true, false, true, false, true, false);
         when(petRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(petRepository.findAllByUserId(1L)).thenReturn(List.of(pet(10L)));
@@ -81,6 +81,38 @@ class PetServiceTest {
         assertThat(result.hasWasteBags()).isFalse();
         assertThat(result.hasStroller()).isTrue();
         assertThat(result.hasDiaper()).isFalse();
+    }
+
+    // 프론트 폼에 입력란은 있었지만 대응 컬럼이 없어서 값이 저장되지 않던 필드 - 컬럼 추가 후 검증
+    @Test
+    void 생일을_등록하면_저장되고_응답에_포함된다() {
+        init();
+        java.time.LocalDate birthDate = java.time.LocalDate.of(2022, 3, 15);
+        PetRequest request = new PetRequest("초코", "강아지", "말티즈", 3.0, birthDate, PetSize.SMALL,
+                true, true, false, false, false, false);
+        when(petRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(petRepository.findAllByUserId(1L)).thenReturn(List.of(pet(10L)));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user()));
+
+        PetResponse result = petService.create(1L, request);
+
+        assertThat(result.birthDate()).isEqualTo(birthDate);
+    }
+
+    @Test
+    void 수정_요청에_생일이_없으면_기존_생일을_유지한다() {
+        init();
+        Pet existing = pet(10L);
+        existing.update(null, null, null, null, java.time.LocalDate.of(2020, 1, 1), null,
+                null, null, null, null, null, null); // 기존에 생일이 이미 등록돼 있던 상황을 세팅
+        when(petRepository.findByIdAndUserId(10L, 1L)).thenReturn(Optional.of(existing));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user()));
+        PetRequest requestWithoutBirthDate = new PetRequest("초코", "강아지", "말티즈", 3.0, null, PetSize.SMALL,
+                true, true, false, false, false, false);
+
+        PetResponse result = petService.update(1L, 10L, requestWithoutBirthDate);
+
+        assertThat(result.birthDate()).isEqualTo(java.time.LocalDate.of(2020, 1, 1));
     }
 
     @Test
@@ -202,7 +234,7 @@ class PetServiceTest {
     }
 
     private PetRequest petRequest() {
-        return new PetRequest("초코", "강아지", "말티즈", 3.0, PetSize.SMALL, true, true, false, false, false, false);
+        return new PetRequest("초코", "강아지", "말티즈", 3.0, null, PetSize.SMALL, true, true, false, false, false, false);
     }
 
     private User user() {

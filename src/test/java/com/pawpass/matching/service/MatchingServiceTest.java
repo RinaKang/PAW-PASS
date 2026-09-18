@@ -241,6 +241,18 @@ class MatchingServiceTest {
     }
 
     @Test
+    void 목록_매칭_전용_경량_경로는_getDetail_대신_getPetCondition만_호출한다() {
+        when(tourService.getPetCondition("123"))
+                .thenReturn(new TourDetailResponse.PetCondition(null, null, null, "반려동물 동반 불가 시설입니다.",
+                        null, null, null, null));
+
+        MatchResponse result = matchingService.matchTourForPetsLightweight(java.util.List.of(OWNED_PET), "123");
+
+        assertThat(result.status()).isEqualTo(MatchResponse.STATUS_DENIED);
+        verify(tourService, never()).getDetail(anyString());
+    }
+
+    @Test
     void facility_매칭도_조건_텍스트를_모아_판정한다() {
         when(petRepository.findByIdAndUserId(1L, 1L)).thenReturn(Optional.of(OWNED_PET));
         when(facilityService.getDetail("f1")).thenReturn(facilityDetail("반려동물 동반 불가"));
