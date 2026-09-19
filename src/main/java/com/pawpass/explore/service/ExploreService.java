@@ -22,6 +22,7 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.function.Supplier;
 
 /**
  * tour(TourAPI 실시간) + facility(KCISA DB) 검색 결과를 합쳐서 반환한다.
@@ -124,12 +125,13 @@ public class ExploreService {
         List<ExploreItem> tourItems;
         List<ExploreItem> facilityItems;
         if (keywordMode) {
-            tourItems = searchTourItemsByKeyword(keyword, page);
+            tourItems = safely(() -> searchTourItemsByKeyword(keyword, page), "keyword=" + keyword);
             facilityItems = searchFacilityItemsByKeyword(keyword, page);
         } else {
             // HOSPITAL처럼 TourAPI에 대응 개념이 아예 없는 카테고리는 tour 조회 자체를 건너뛴다(불필요한
             // TourAPI 호출도 안 나감) - ExploreConditionMapper.CategoryMapping.facilityOnly 참고.
-            tourItems = ExploreConditionMapper.isFacilityOnly(category) ? List.of() : searchTourItems(regionCode, category, page);
+            tourItems = ExploreConditionMapper.isFacilityOnly(category) ? List.of()
+                    : safely(() -> searchTourItems(regionCode, category, page), "regionCode=" + regionCode + ", category=" + category);
             facilityItems = searchFacilityItems(regionCode, category, page);
         }
 
@@ -209,6 +211,24 @@ public class ExploreService {
             }
         }
         return merged;
+    }
+
+    /**
+     * tour 목록 조회(TourAPI areaBasedList2/searchKeyword2) 실패가 facility(KCISA, 자체 DB) 결과까지
+     * 통째로 끌고 내려가지 않게 한다(2026-09-19 추가) - 이 메서드가 없으면 tourItems 조회에서 예외가
+     * 터지는 순간 바로 다음 줄인 facilityItems 조회는 아예 시도조차 못 하고 /explore 전체가 503이
+     * 난다(TourAPI 일일 호출 한도 초과로 실사용 중 실제로 겪은 문제). 항목별 매칭 실패를 "확인필요"로
+     * 조용히 넘기는 computeOne()과 같은 원칙을, 그보다 앞단인 목록 조회 자체에도 적용한다 - 단, 매칭과
+     * 달리 항목 하나짜리 폴백이 아니라 tour 결과 전체를 빈 목록으로 대체한다(부분 성공이 불가능한 단일
+     * 목록 호출이라).
+     */
+    private List<ExploreItem> safely(Supplier<List<ExploreItem>> tourSearch, String context) {
+        try {
+            return tourSearch.get();
+        } catch (Exception e) {
+            log.warn("tour 목록 조회 실패 - facility 결과만으로 진행함: {}, error={}", context, e.getMessage());
+            return List.of();
+        }
     }
 
     /**

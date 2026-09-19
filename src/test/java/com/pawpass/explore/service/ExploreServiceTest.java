@@ -61,6 +61,20 @@ class ExploreServiceTest {
                 );
     }
 
+    // 2026-09-19: TourAPI 일일 호출 한도 초과 등으로 목록 조회 자체가 실패해도, facility(자체 DB)
+    // 결과까지 같이 죽으면 안 된다 - 전체가 503 나던 실제 버그를 고친 부분.
+    @Test
+    void tour_목록_조회가_실패해도_facility_결과는_그대로_반환된다() {
+        FacilitySummaryResponse facility = new FacilitySummaryResponse("f1", "시설", "주소", "tel", 1.0, 1.0, null, null);
+        when(tourService.search(null, null, null, null, null, null, 1))
+                .thenThrow(new RuntimeException("429 TOO_MANY_REQUESTS"));
+        when(facilityService.search(null, null, 1)).thenReturn(List.of(facility));
+
+        List<ExploreItem> result = exploreService.explore(1L, null, null, null, null, 1);
+
+        assertThat(result).extracting(ExploreItem::id).containsExactly("f1");
+    }
+
     // 2026-09-13: 프론트가 카테고리별 플레이스홀더 이미지를 고를 수 있게 category 필드 추가 - 소스별
     // 원본 규격 그대로(tourapi=contentTypeId, kcisa=category3) 통과시킨다(공통 규격으로 변환 안 함).
     @Test
