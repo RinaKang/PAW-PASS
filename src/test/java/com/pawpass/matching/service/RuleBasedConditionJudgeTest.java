@@ -26,6 +26,20 @@ class RuleBasedConditionJudgeTest {
         assertThat(result.get().status()).isEqualTo(MatchResponse.STATUS_DENIED);
     }
 
+    // 2026-09-20: "일부구역 동반가능/전 견종 가능/목줄 착용" 같은 명백한 조건부 허용 문맥인데도, 그 안에
+    // 섞인 "문학관 내부는 동반 불가"(특정 구역 한정 제외)의 "동반 불가"가 DENY_KEYWORDS 부분일치에
+    // 걸려서 시설 전체를 즉시 불가로 오판하던 실사용 리포트 - "가능"이 같이 있으면 즉시 단정하지 않고
+    // AI로 넘기도록 수정했다.
+    @Test
+    void 조건부_허용_문맥에_섞인_부분_제외는_즉시_불가로_단정하지_않는다() {
+        String rawText = "일부구역 동반가능\n전 견종 동반 가능\n목줄 착용\n"
+                + "- 문학관 내부는 동반 불가- 맹견의 경우, 입마개 착용 필수- 배변봉투 지참 및 배변처리 필수";
+
+        Optional<MatchResponse> result = RuleBasedConditionJudge.judge(rawText);
+
+        assertThat(result).isEmpty();
+    }
+
     @Test
     void 제한없이_전견종_가능이면_즉시_가능() {
         Optional<MatchResponse> result = RuleBasedConditionJudge.judge("전 견종 가능하며 자유롭게 이용하실 수 있습니다.");

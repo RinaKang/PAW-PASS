@@ -56,13 +56,6 @@ external-api:
     # 실시간으로 다시 받아야 함 - google_place_id만 배치 동기화 시점에 pet_facilities에 저장해서 재사용.
     base-url: https://places.googleapis.com
     api-key: ${GOOGLE_PLACES_API_KEY:}
-  kakao-mobility:
-    # 동선 추천(POST /route/suggest) 고도화용 - 직선거리(하버사인) 대신 실제 도로 기준 거리/시간(2026-09-15
-    # 추가). 이 키는 기본 카카오 API 키 발급과 달리 Directions API 별도 "사용 권한 신청"이 필요하다
-    # (2026-09-15 기준 사용자는 아직 미신청) - 키가 비어있거나 호출이 실패하면 RouteService가 기존
-    # 직선거리 계산으로 조용히 폴백한다(route/service/RouteService 참고), 절대 500을 내지 않는다.
-    base-url: https://apis-navi.kakaomobility.com
-    service-key: ${KAKAO_MOBILITY_API_KEY:}
 
 jwt:
   secret: ${JWT_SECRET:change-this-in-production-please-use-env-variable}

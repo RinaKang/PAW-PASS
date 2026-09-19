@@ -86,7 +86,15 @@ final class RuleBasedConditionJudge {
             return Optional.of(new MatchResponse(
                     MatchResponse.STATUS_UNKNOWN, "반려동물 동반 조건 정보가 등록되어 있지 않습니다.", rawText));
         }
-        if (containsAny(rawText, DENY_KEYWORDS)) {
+        // "가능"이 원문 어디에도 같이 없을 때만 즉시 불가로 단정한다(2026-09-20 수정) - 그전엔
+        // "문학관 내부는 동반 불가"처럼 특정 구역/조건에만 걸리는 부분 제외 문구에도 DENY_KEYWORDS
+        // ("동반 불가")가 단순 부분일치로 걸려서, "일부구역 동반가능/전 견종 가능/목줄 착용" 같은
+        // 명백한 조건부 허용 문맥을 무시하고 시설 전체를 불가로 오판하는 실제 버그가 있었다(사용자
+        // 실사용 리포트로 발견). UNCONDITIONAL_ALLOW_KEYWORDS 게이트가 이미 hasRestrictionHint()로
+        // 반대 신호를 확인하는 것과 대칭되게, 이쪽도 "가능"이라는 반대 신호가 있으면 즉시 단정하지 않고
+        // tryExtractStructured()/AI로 넘긴다 - tryExtractStructured()의 ANY_DENIAL_HINT 게이트가 이런
+        // 혼재 케이스를 이미 안전하게 처리해준다.
+        if (containsAny(rawText, DENY_KEYWORDS) && !containsAny(rawText, POSITIVE_HINT)) {
             return Optional.of(new MatchResponse(
                     MatchResponse.STATUS_DENIED, "반려동물 동반이 불가능한 곳입니다.", rawText));
         }
